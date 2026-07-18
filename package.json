@@ -1,0 +1,16 @@
+{
+  "name": "logisticsflow-monorepo",
+  "private": true,
+  "version": "1.0.0",
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "scripts": {
+    "build": "npm run build --workspace frontend",
+    "build:frontend": "npm run build --workspace frontend",
+    "build:backend": "npm run build --workspace backend",
+    "dev:frontend": "npm run dev --workspace frontend",
+    "dev:backend": "npm run dev --workspace backend"
+  }
+}

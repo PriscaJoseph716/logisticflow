@@ -6,7 +6,8 @@ const DEPLOYED_API_URL = "https://logisticflow-uzop.onrender.com/api";
 const API_TIMEOUT_MS = 60000;
 
 function normalizeApiUrl(url) {
-  return url.replace(/\/+$/, "");
+  const trimmedUrl = url.replace(/\/+$/, "");
+  return trimmedUrl.endsWith("/api") ? trimmedUrl : `${trimmedUrl}/api`;
 }
 
 function resolveApiUrl() {

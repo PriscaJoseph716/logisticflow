@@ -43,10 +43,10 @@ const normalizedEnv = {
     ) ?? "http://127.0.0.1:5173",
   DATABASE_URL: firstDefined(
     process.env.DATABASE_URL,
-    process.env.POSTGRES_URL,
-    process.env.POSTGRES_PRISMA_URL,
     process.env.POSTGRES_INTERNAL_URL,
     process.env.POSTGRES_URL_NON_POOLING,
+    process.env.POSTGRES_PRISMA_URL,
+    process.env.POSTGRES_URL,
   ),
   JWT_ACCESS_SECRET: firstDefined(
     process.env.JWT_ACCESS_SECRET,

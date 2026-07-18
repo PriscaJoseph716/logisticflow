@@ -52,8 +52,6 @@ interface PrivateSessionTokens extends PublicSessionTokens {
 
 export class AuthService {
   async registerCompany(input: RegisterCompanyInput) {
-    await emailService.ensureAvailable();
-
     const existingUser = await prisma.user.findUnique({
       where: { email: input.email.toLowerCase() },
     });
@@ -139,7 +137,7 @@ export class AuthService {
       return owner;
     });
 
-    await this.createEmailVerificationToken(user.id, user.businessId, user.email);
+    await this.sendEmailVerificationTokenSafely(user.id, user.businessId, user.email);
     const session = await this.issueSessionTokens(user);
 
     return {
@@ -472,6 +470,14 @@ export class AuthService {
       subject: "Verify your LOGISTICSFLOW account",
       html: `Use this verification token: ${rawToken}`,
     });
+  }
+
+  private async sendEmailVerificationTokenSafely(userId: string, businessId: string, email: string) {
+    try {
+      await this.createEmailVerificationToken(userId, businessId, email);
+    } catch (error) {
+      console.error("Failed to send email verification token after registration:", error);
+    }
   }
 
   private async createDefaultPermissions(transaction: Prisma.TransactionClient, businessId: string) {

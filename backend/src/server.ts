@@ -1,5 +1,5 @@
 import { createApp } from "./app.js";
-import { prisma } from "./config/database.js";
+import { prisma, verifyDatabaseConnection } from "./config/database.js";
 import { env } from "./config/env.js";
 
 const app = createApp();
@@ -39,6 +39,17 @@ process.on("uncaughtException", (error) => {
   });
 });
 
-server = app.listen(env.PORT, "0.0.0.0", () => {
-  console.log(`${env.APP_NAME} listening on http://0.0.0.0:${env.PORT}`);
-});
+async function startServer() {
+  try {
+    await verifyDatabaseConnection();
+    server = app.listen(env.PORT, "0.0.0.0", () => {
+      console.log(`${env.APP_NAME} listening on http://0.0.0.0:${env.PORT}`);
+    });
+  } catch (error) {
+    console.error("Failed to connect to PostgreSQL during startup:", error);
+    await prisma.$disconnect().catch(() => undefined);
+    process.exit(1);
+  }
+}
+
+void startServer();

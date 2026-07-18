@@ -13,6 +13,10 @@ function isLocalDatabaseHost(host?: string | null) {
   return !host || host === "localhost" || host === "127.0.0.1";
 }
 
+function isRenderInternalHost(host?: string | null) {
+  return Boolean(host && host.endsWith(".render-internal.com"));
+}
+
 function buildPoolConfig(connectionString: string): PoolConfig {
   const parsedConfig = parseConnectionString(connectionString) as PoolConfig & {
     sslmode?: string;
@@ -26,7 +30,9 @@ function buildPoolConfig(connectionString: string): PoolConfig {
     max: 10,
   };
 
-  if (sslMode !== "disable" && !isLocalDatabaseHost(poolConfig.host)) {
+  if (sslMode === "disable" || isLocalDatabaseHost(poolConfig.host) || isRenderInternalHost(poolConfig.host)) {
+    poolConfig.ssl = false;
+  } else {
     poolConfig.ssl = { rejectUnauthorized: false };
   }
 

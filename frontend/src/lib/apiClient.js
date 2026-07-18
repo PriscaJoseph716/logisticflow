@@ -2,7 +2,7 @@ import axios from "axios";
 import { clearStoredSession, loadStoredSession, storeSession } from "./session";
 
 const LOCAL_API_URL = "http://127.0.0.1:5000/api";
-const DEPLOYED_API_URL = "https://logisticsflow-backend.onrender.com/api";
+const DEPLOYED_API_URL = "https://logisticflow-uzop.onrender.com/api";
 const API_TIMEOUT_MS = 60000;
 
 function normalizeApiUrl(url) {

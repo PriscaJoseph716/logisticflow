@@ -1,24 +1,15 @@
 import type { CorsOptions } from "cors";
 import { env } from "./env.js";
 
-const localOrigins = new Set([
-  "http://127.0.0.1:5173",
-  "http://localhost:5173",
-  "http://127.0.0.1:4173",
-  "http://localhost:4173",
-]);
-
-const allowedOrigins = env.FRONTEND_URL.split(",")
+const allowedOrigins = new Set(
+  env.FRONTEND_URL.split(",")
   .map((origin) => origin.trim())
-  .filter(Boolean);
-
-function isVercelPreviewOrigin(origin: string) {
-  return /^https:\/\/[a-z0-9-]+\.vercel\.app$/i.test(origin);
-}
+  .filter(Boolean),
+);
 
 export const corsOptions: CorsOptions = {
   origin(origin, callback) {
-    if (!origin || localOrigins.has(origin) || allowedOrigins.includes(origin) || isVercelPreviewOrigin(origin)) {
+    if (!origin || allowedOrigins.has(origin)) {
       callback(null, true);
       return;
     }
@@ -26,4 +17,7 @@ export const corsOptions: CorsOptions = {
     callback(new Error("Origin not allowed by CORS"));
   },
   credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  optionsSuccessStatus: 204,
 };

@@ -14,6 +14,7 @@ export function createApp() {
 
   app.use(helmet());
   app.use(cors(corsOptions));
+  app.options(/.*/, cors(corsOptions));
   app.use(requestLogger);
   app.use(express.json({ limit: "10mb" }));
   app.use(express.urlencoded({ extended: true }));

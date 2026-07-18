@@ -1,15 +1,36 @@
 import axios from "axios";
 import { clearStoredSession, loadStoredSession, storeSession } from "./session";
 
-const DEFAULT_API_URL = "http://127.0.0.1:5000/api";
-const API_TIMEOUT_MS = 20000;
+const LOCAL_API_URL = "http://127.0.0.1:5000/api";
+const DEPLOYED_API_URL = "https://logisticsflow-backend.onrender.com/api";
+const API_TIMEOUT_MS = 60000;
+
+function normalizeApiUrl(url) {
+  return url.replace(/\/+$/, "");
+}
+
+function resolveApiUrl() {
+  const configuredUrl = import.meta.env.VITE_API_URL?.trim();
+  if (configuredUrl) {
+    return normalizeApiUrl(configuredUrl);
+  }
+
+  if (typeof window !== "undefined") {
+    const { hostname } = window.location;
+    if (hostname === "localhost" || hostname === "127.0.0.1") {
+      return LOCAL_API_URL;
+    }
+  }
+
+  return DEPLOYED_API_URL;
+}
 
 let inMemorySession = loadStoredSession();
 let refreshRequest = null;
 let authExpiredHandler = () => {};
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL ?? DEFAULT_API_URL,
+  baseURL: resolveApiUrl(),
   withCredentials: true,
   timeout: API_TIMEOUT_MS,
 });
@@ -129,6 +150,10 @@ api.interceptors.response.use(
 
 export function getApiErrorMessage(error, fallback = "Something went wrong.") {
   if (axios.isAxiosError(error)) {
+    if (!error.response && (error.code === "ECONNABORTED" || error.message === "Network Error")) {
+      return "Unable to reach the server. If the backend is waking up, please wait a moment and try again.";
+    }
+
     return error.response?.data?.message ?? error.message ?? fallback;
   }
 

@@ -25,23 +25,25 @@ function clearRefreshCookie(response: Response) {
 export class AuthController {
   registerCompany = async (request: Request, response: Response) => {
     const result = await authService.registerCompany(request.body);
-    setRefreshCookie(response, result.tokens.refreshToken);
+    setRefreshCookie(response, result.refreshToken);
+    const { refreshToken: _refreshToken, ...responseData } = result;
 
     response.status(201).json({
       success: true,
       message: "Company registered successfully.",
-      data: result,
+      data: responseData,
     });
   };
 
   login = async (request: Request, response: Response) => {
     const result = await authService.login(request.body);
-    setRefreshCookie(response, result.tokens.refreshToken);
+    setRefreshCookie(response, result.refreshToken);
+    const { refreshToken: _refreshToken, ...responseData } = result;
 
     response.json({
       success: true,
       message: "Login successful.",
-      data: result,
+      data: responseData,
     });
   };
 
@@ -60,12 +62,13 @@ export class AuthController {
     const refreshToken =
       (request.body.refreshToken as string | undefined) ?? (request.cookies?.[env.JWT_REFRESH_COOKIE_NAME] as string | undefined);
     const result = await authService.refreshSession(refreshToken);
-    setRefreshCookie(response, result.tokens.refreshToken);
+    setRefreshCookie(response, result.refreshToken);
+    const { refreshToken: _refreshToken, ...responseData } = result;
 
     response.json({
       success: true,
       message: "Session refreshed successfully.",
-      data: result,
+      data: responseData,
     });
   };
 

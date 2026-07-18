@@ -41,8 +41,19 @@ type AuthenticatedUser = Prisma.UserGetPayload<{
   };
 }>;
 
+interface PublicSessionTokens {
+  accessToken: string;
+  expiresIn: string;
+}
+
+interface PrivateSessionTokens extends PublicSessionTokens {
+  refreshToken: string;
+}
+
 export class AuthService {
   async registerCompany(input: RegisterCompanyInput) {
+    await emailService.ensureAvailable();
+
     const existingUser = await prisma.user.findUnique({
       where: { email: input.email.toLowerCase() },
     });
@@ -128,14 +139,14 @@ export class AuthService {
       return owner;
     });
 
-    const emailVerificationToken = await this.createEmailVerificationToken(user.id, user.businessId, user.email);
+    await this.createEmailVerificationToken(user.id, user.businessId, user.email);
     const session = await this.issueSessionTokens(user);
 
     return {
       user: this.serializeUser(user),
       business: user.business,
-      tokens: session,
-      verificationToken: emailVerificationToken,
+      tokens: this.toPublicTokens(session),
+      refreshToken: session.refreshToken,
     };
   }
 
@@ -164,7 +175,7 @@ export class AuthService {
     return {
       user: this.serializeUser(user),
       business: user.business,
-      tokens: await this.issueSessionTokens(user),
+      ...this.createSessionResponse(await this.issueSessionTokens(user)),
     };
   }
 
@@ -231,7 +242,7 @@ export class AuthService {
     return {
       user: this.serializeUser(tokenRecord.user),
       business: tokenRecord.user.business,
-      tokens: await this.issueSessionTokens(tokenRecord.user),
+      ...this.createSessionResponse(await this.issueSessionTokens(tokenRecord.user)),
     };
   }
 
@@ -240,6 +251,8 @@ export class AuthService {
     if (!user) {
       return { message: "If the account exists, a reset link has been sent." };
     }
+
+    await emailService.ensureAvailable();
 
     const rawToken = randomUUID();
     const tokenHash = await hashValue(rawToken);
@@ -262,7 +275,6 @@ export class AuthService {
 
     return {
       message: "If the account exists, a reset link has been sent.",
-      resetToken: rawToken,
     };
   }
 
@@ -383,7 +395,7 @@ export class AuthService {
     });
   }
 
-  private async issueSessionTokens(user: AuthenticatedUser) {
+  private async issueSessionTokens(user: AuthenticatedUser): Promise<PrivateSessionTokens> {
     const permissions = user.role?.rolePermissions.map((entry) => entry.permission.key) ?? [];
     const role = user.role?.name ?? "Viewer";
     const tokenId = randomUUID();
@@ -413,6 +425,20 @@ export class AuthService {
       accessToken,
       refreshToken,
       expiresIn: env.JWT_ACCESS_EXPIRES_IN,
+    };
+  }
+
+  private createSessionResponse(session: PrivateSessionTokens) {
+    return {
+      tokens: this.toPublicTokens(session),
+      refreshToken: session.refreshToken,
+    };
+  }
+
+  private toPublicTokens(session: PrivateSessionTokens): PublicSessionTokens {
+    return {
+      accessToken: session.accessToken,
+      expiresIn: session.expiresIn,
     };
   }
 
@@ -446,8 +472,6 @@ export class AuthService {
       subject: "Verify your LOGISTICSFLOW account",
       html: `Use this verification token: ${rawToken}`,
     });
-
-    return rawToken;
   }
 
   private async createDefaultPermissions(transaction: Prisma.TransactionClient, businessId: string) {

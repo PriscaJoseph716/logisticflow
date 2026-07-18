@@ -1,6 +1,6 @@
 import PDFDocument from "pdfkit";
+import ExcelJS from "exceljs";
 import { ReportFormat, ReportStatus, type Prisma } from "@prisma/client";
-import * as XLSX from "xlsx";
 import { prisma } from "../../config/database.js";
 import type {
   ReportCreateInput,
@@ -97,16 +97,46 @@ async function createPdfBuffer(title: string, rows: Record<string, unknown>[]) {
   });
 }
 
-function createExcelBuffer(rows: Record<string, unknown>[]) {
-  const workbook = XLSX.utils.book_new();
-  const worksheet = XLSX.utils.json_to_sheet(rows);
-  XLSX.utils.book_append_sheet(workbook, worksheet, "Report");
-  return XLSX.write(workbook, { type: "buffer", bookType: "xlsx" }) as Buffer;
+async function createExcelBuffer(rows: Record<string, unknown>[]) {
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet("Report");
+  const headers = Array.from(new Set(rows.flatMap((row) => Object.keys(row))));
+
+  if (headers.length > 0) {
+    worksheet.columns = headers.map((header) => ({
+      header,
+      key: header,
+      width: Math.max(header.length + 4, 18),
+    }));
+    rows.forEach((row) => worksheet.addRow(row));
+    worksheet.getRow(1).font = { bold: true };
+  }
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  return Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer);
+}
+
+function escapeCsvValue(value: unknown) {
+  const serialized = String(value ?? "");
+  if (/[",\n]/.test(serialized)) {
+    return `"${serialized.replace(/"/g, "\"\"")}"`;
+  }
+
+  return serialized;
 }
 
 function createCsvBuffer(rows: Record<string, unknown>[]) {
-  const worksheet = XLSX.utils.json_to_sheet(rows);
-  return Buffer.from(XLSX.utils.sheet_to_csv(worksheet), "utf-8");
+  const headers = Array.from(new Set(rows.flatMap((row) => Object.keys(row))));
+  if (!headers.length) {
+    return Buffer.from("", "utf-8");
+  }
+
+  const lines = [
+    headers.join(","),
+    ...rows.map((row) => headers.map((header) => escapeCsvValue(row[header])).join(",")),
+  ];
+
+  return Buffer.from(lines.join("\n"), "utf-8");
 }
 
 async function buildRows(businessId: string, module: ReportModule, filters?: Record<string, unknown>) {
@@ -396,7 +426,7 @@ export class ReportsRepository {
         payload.format === "pdf"
           ? await createPdfBuffer(payload.name, rows)
           : payload.format === "excel"
-            ? createExcelBuffer(rows)
+            ? await createExcelBuffer(rows)
             : createCsvBuffer(rows);
 
       const updatedReport = await prisma.report.update({

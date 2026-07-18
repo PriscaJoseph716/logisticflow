@@ -1,0 +1,30 @@
+export const emptyAppData = {
+  fleet: [],
+  shipments: [],
+  deliveries: [],
+  customers: [],
+  suppliers: [],
+  maintenanceRecords: [],
+  payments: [],
+  reports: [],
+  notifications: [],
+  dashboardSummary: null,
+  billingSummary: null,
+  maintenanceAnalytics: null,
+  maintenanceUpcoming: [],
+  maintenanceMileageReminders: [],
+  activityFeed: [],
+};
+
+export const navigation = [
+  { id: "dashboard", label: "Dashboard" },
+  { id: "fleet", label: "Fleet" },
+  { id: "shipments", label: "Shipments" },
+  { id: "deliveries", label: "Deliveries" },
+  { id: "customers", label: "Customers" },
+  { id: "suppliers", label: "Suppliers" },
+  { id: "maintenance", label: "Maintenance" },
+  { id: "billing", label: "Billing" },
+  { id: "reports", label: "Reports" },
+  { id: "settings", label: "Settings" },
+];

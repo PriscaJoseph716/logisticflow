@@ -1,4 +1,4 @@
-import type { CorsOptions } from "cors";
+import type { NextFunction, Request, Response } from "express";
 
 const allowedOrigins = [
   "https://logisticflow.vercel.app",
@@ -6,24 +6,32 @@ const allowedOrigins = [
   "http://localhost:3000",
 ];
 
-export const corsOptions: CorsOptions = {
-  origin(origin, callback) {
-    console.log("Incoming Origin:", origin);
+const allowedMethods = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"];
+const allowedHeaders = ["Content-Type", "Authorization"];
 
-    if (!origin) {
-      callback(null, true);
-      return;
-    }
+function isAllowedOrigin(origin: string | undefined) {
+  return !origin || allowedOrigins.includes(origin);
+}
 
-    if (allowedOrigins.includes(origin)) {
-      callback(null, true);
-      return;
-    }
+export function corsMiddleware(request: Request, response: Response, next: NextFunction) {
+  const origin = request.headers.origin;
+  console.log("Incoming Origin:", origin);
 
-    callback(null, false);
-  },
-  credentials: true,
-  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
-  optionsSuccessStatus: 204,
-};
+  if (origin && allowedOrigins.includes(origin)) {
+    response.header("Access-Control-Allow-Origin", origin);
+    response.header("Vary", "Origin");
+  }
+
+  if (isAllowedOrigin(origin)) {
+    response.header("Access-Control-Allow-Credentials", "true");
+    response.header("Access-Control-Allow-Methods", allowedMethods.join(", "));
+    response.header("Access-Control-Allow-Headers", allowedHeaders.join(", "));
+  }
+
+  if (request.method === "OPTIONS") {
+    response.status(204).end();
+    return;
+  }
+
+  next();
+}

@@ -3,7 +3,7 @@ import { PrismaClient } from "@prisma/client";
 import { Pool } from "pg";
 import { env } from "./env.js";
 
-const pool = new Pool({
+export const pool = new Pool({
   connectionString: env.DATABASE_URL,
   ssl: env.DATABASE_URL.includes("localhost") || env.DATABASE_URL.includes("127.0.0.1")
     ? false

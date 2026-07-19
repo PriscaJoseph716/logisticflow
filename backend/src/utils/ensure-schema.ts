@@ -1,12 +1,4 @@
-import { execFileSync } from "node:child_process";
-import { existsSync } from "node:fs";
-import path from "node:path";
 import { pool, prisma } from "../config/database.js";
-
-type PrismaCommand = {
-  command: string;
-  args: string[];
-};
 
 /** Idempotent SQL matching the current Prisma schema (final shape). */
 const BOOTSTRAP_SQL = `
@@ -131,34 +123,6 @@ EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 `;
 
-function resolvePrismaCommand(): PrismaCommand | null {
-  const jsEntry = [
-    path.resolve(process.cwd(), "node_modules", "prisma", "build", "index.js"),
-    path.resolve(process.cwd(), "..", "node_modules", "prisma", "build", "index.js"),
-  ].find((candidate) => existsSync(candidate));
-
-  if (jsEntry) {
-    return {
-      command: process.execPath,
-      args: [jsEntry, "db", "push", "--accept-data-loss", "--skip-generate"],
-    };
-  }
-
-  const binEntry = [
-    path.resolve(process.cwd(), "node_modules", ".bin", "prisma"),
-    path.resolve(process.cwd(), "..", "node_modules", ".bin", "prisma"),
-  ].find((candidate) => existsSync(candidate));
-
-  if (binEntry) {
-    return {
-      command: binEntry,
-      args: ["db", "push", "--accept-data-loss", "--skip-generate"],
-    };
-  }
-
-  return null;
-}
-
 async function businessTableExists(): Promise<boolean> {
   try {
     await prisma.$queryRaw`SELECT 1 FROM "Business" LIMIT 1`;
@@ -172,20 +136,6 @@ async function businessTableExists(): Promise<boolean> {
   }
 }
 
-function runDbPush() {
-  const command = resolvePrismaCommand();
-  if (!command) {
-    throw new Error("Prisma CLI not found");
-  }
-
-  console.info("[boot] syncing database schema with prisma db push...");
-  execFileSync(command.command, command.args, {
-    cwd: process.cwd(),
-    env: process.env,
-    stdio: "inherit",
-  });
-}
-
 async function runSqlBootstrap() {
   console.info("[boot] applying SQL schema bootstrap...");
   await pool.query(BOOTSTRAP_SQL);
@@ -193,6 +143,7 @@ async function runSqlBootstrap() {
 
 /**
  * Ensures production DB matches Prisma schema before the API accepts traffic.
+ * Uses direct SQL (reliable on Render) instead of prisma db push CLI.
  */
 export async function ensureDatabaseSchema() {
   if (await businessTableExists()) {
@@ -200,19 +151,8 @@ export async function ensureDatabaseSchema() {
     return;
   }
 
-  console.warn('[boot] "Business" table missing — applying schema');
-
-  try {
-    runDbPush();
-  } catch (error) {
-    console.warn("[boot] prisma db push failed, falling back to SQL bootstrap", error);
-    await runSqlBootstrap();
-  }
-
-  if (!(await businessTableExists())) {
-    // Last resort: SQL bootstrap even if db push claimed success but table missing.
-    await runSqlBootstrap();
-  }
+  console.warn('[boot] "Business" table missing — applying SQL schema bootstrap');
+  await runSqlBootstrap();
 
   if (!(await businessTableExists())) {
     throw new Error('Schema sync finished but "Business" table is still missing.');

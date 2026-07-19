@@ -10,7 +10,7 @@ export function corsMiddleware(request: Request, response: Response, next: NextF
     response.setHeader("Vary", "Origin");
   }
 
-  response.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  response.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
   response.setHeader(
     "Access-Control-Allow-Headers",
     "Content-Type, Authorization",

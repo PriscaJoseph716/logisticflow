@@ -48,121 +48,211 @@ function getPermissionsForRole(roleName?: string | null) {
 
 export class AuthService {
   async registerCompany(input: RegisterCompanyInput) {
-    const existingUser = await prisma.user.findUnique({
-      where: { email: input.email.toLowerCase() },
-    });
+    let registerStep = "check-existing-user";
 
-    if (existingUser) {
-      throw new AppError("An account with this email already exists.", 409, "EMAIL_ALREADY_EXISTS");
-    }
-
-    const passwordHash = await hashValue(input.password);
-    const identity = createBusinessIdentifier(input.companyName);
-    const businessSlug = `${identity.slug}-${identity.businessId.toLowerCase()}`;
-
-    const user = await prisma.$transaction(async (transaction) => {
-      const business = await transaction.business.create({
-        data: {
-          businessId: identity.businessId,
-          name: input.companyName,
-          slug: businessSlug,
-          email: input.email.toLowerCase(),
-        },
+    try {
+      const normalizedEmail = input.email.toLowerCase();
+      console.info("[auth.register] step=check-existing-user", { email: normalizedEmail });
+      const existingUser = await prisma.user.findUnique({
+        where: { email: normalizedEmail },
       });
 
-      await this.createDefaultPermissions(transaction, business.businessId);
-      await this.createDefaultRoles(transaction, business.businessId);
-
-      const ownerRole = await transaction.role.findFirst({
-        where: {
-          businessId: business.businessId,
-          name: env.DEFAULT_OWNER_ROLE,
-        },
-      });
-
-      if (!ownerRole) {
-        throw new AppError("Owner role was not created.", 500, "OWNER_ROLE_MISSING");
+      if (existingUser) {
+        throw new AppError("Email already exists.", 409, "EMAIL_ALREADY_EXISTS");
       }
 
-      const owner = await transaction.user.create({
-        data: {
+      registerStep = "hash-password";
+      console.info("[auth.register] step=hash-password");
+      const passwordHash = await hashValue(input.password);
+
+      registerStep = "generate-business-id";
+      const identity = createBusinessIdentifier(input.companyName);
+      const businessSlug = `${identity.slug}-${identity.businessId.toLowerCase()}`;
+      console.info("[auth.register] step=generate-business-id", {
+        businessId: identity.businessId,
+        businessSlug,
+      });
+
+      registerStep = "transaction-start";
+      const user = await prisma.$transaction(async (transaction) => {
+        registerStep = "create-business";
+        console.info("[auth.register] step=create-business", {
+          businessId: identity.businessId,
+          companyName: input.companyName,
+        });
+
+        const business = await transaction.business.create({
+          data: {
+            businessId: identity.businessId,
+            name: input.companyName,
+            slug: businessSlug,
+            email: normalizedEmail,
+          },
+        });
+
+        registerStep = "create-default-permissions";
+        console.info("[auth.register] step=create-default-permissions", {
           businessId: business.businessId,
-          roleId: ownerRole.id,
-          fullName: input.fullName,
-          email: input.email.toLowerCase(),
-          passwordHash,
-        },
-        include: {
-          role: true,
-          business: true,
-        },
-      });
+        });
+        await this.createDefaultPermissions(transaction, business.businessId);
 
-      await transaction.business.update({
-        where: { id: business.id },
-        data: { ownerUserId: owner.id },
-      });
-
-      await transaction.setting.create({
-        data: {
+        registerStep = "create-default-roles";
+        console.info("[auth.register] step=create-default-roles", {
           businessId: business.businessId,
-        },
-      });
+        });
+        await this.createDefaultRoles(transaction, business.businessId);
 
-      await transaction.activityLog.create({
-        data: {
+        registerStep = "find-owner-role";
+        console.info("[auth.register] step=find-owner-role", {
+          businessId: business.businessId,
+          roleName: env.DEFAULT_OWNER_ROLE,
+        });
+        const ownerRole = await transaction.role.findFirst({
+          where: {
+            businessId: business.businessId,
+            name: env.DEFAULT_OWNER_ROLE,
+          },
+        });
+
+        if (!ownerRole) {
+          throw new AppError("Owner role was not created.", 500, "OWNER_ROLE_MISSING");
+        }
+
+        registerStep = "create-owner-user";
+        console.info("[auth.register] step=create-owner-user", {
+          businessId: business.businessId,
+          email: normalizedEmail,
+        });
+        const owner = await transaction.user.create({
+          data: {
+            businessId: business.businessId,
+            roleId: ownerRole.id,
+            fullName: input.fullName,
+            email: normalizedEmail,
+            passwordHash,
+          },
+          include: {
+            role: true,
+            business: true,
+          },
+        });
+
+        registerStep = "link-owner-to-business";
+        console.info("[auth.register] step=link-owner-to-business", {
+          businessRecordId: business.id,
+          ownerUserId: owner.id,
+        });
+        await transaction.business.update({
+          where: { id: business.id },
+          data: { ownerUserId: owner.id },
+        });
+
+        registerStep = "create-settings";
+        console.info("[auth.register] step=create-settings", {
+          businessId: business.businessId,
+        });
+        await transaction.setting.create({
+          data: {
+            businessId: business.businessId,
+          },
+        });
+
+        registerStep = "create-activity-log";
+        console.info("[auth.register] step=create-activity-log", {
           businessId: business.businessId,
           userId: owner.id,
-          action: "AUTH_REGISTER",
-          entity: "Business",
-          entityId: business.id,
-          metadata: {
-            email: owner.email,
+        });
+        await transaction.activityLog.create({
+          data: {
+            businessId: business.businessId,
+            userId: owner.id,
+            action: "AUTH_REGISTER",
+            entity: "Business",
+            entityId: business.id,
+            metadata: {
+              email: owner.email,
+            },
           },
-        },
+        });
+
+        return owner;
       });
 
-      return owner;
-    });
+      registerStep = "send-email-verification";
+      await this.sendEmailVerificationTokenSafely(user.id, user.businessId, user.email);
 
-    await this.sendEmailVerificationTokenSafely(user.id, user.businessId, user.email);
-    const session = await this.issueSessionTokens(user);
+      registerStep = "issue-session-tokens";
+      const session = await this.issueSessionTokens(user);
 
-    return {
-      user: this.serializeUser(user),
-      business: user.business,
-      tokens: this.toPublicTokens(session),
-      refreshToken: session.refreshToken,
-    };
+      registerStep = "serialize-response";
+      return {
+        user: this.serializeUser(user),
+        business: user.business,
+        tokens: this.toPublicTokens(session),
+        refreshToken: session.refreshToken,
+      };
+    } catch (error) {
+      console.error("[auth.register] failing step:", registerStep);
+      console.error("[auth.register] full error:", error);
+
+      if (error instanceof Error) {
+        console.error("[auth.register] error stack:", error.stack);
+        Object.assign(error, { failingStep: registerStep });
+      } else {
+        const wrapped = new Error(String(error));
+        Object.assign(wrapped, { failingStep: registerStep, originalError: error });
+        throw wrapped;
+      }
+
+      throw error;
+    }
   }
 
   async login(input: LoginInput) {
-    const user = await this.getUserByEmail(input.email.toLowerCase());
+    let loginStep = "load-user";
 
-    if (!user) {
-      throw new AppError("Invalid email or password.", 401, "INVALID_CREDENTIALS");
+    try {
+      const normalizedEmail = input.email.toLowerCase();
+      console.info("[auth.login] step=load-user", { email: normalizedEmail });
+      const user = await this.getUserByEmail(normalizedEmail);
+
+      if (!user) {
+        throw new AppError("Invalid email or password.", 401, "INVALID_CREDENTIALS");
+      }
+
+      loginStep = "verify-password";
+      const passwordMatches = await compareHash(input.password, user.passwordHash);
+      if (!passwordMatches) {
+        throw new AppError("Invalid email or password.", 401, "INVALID_CREDENTIALS");
+      }
+
+      loginStep = "create-activity-log";
+      await prisma.activityLog.create({
+        data: {
+          businessId: user.businessId,
+          userId: user.id,
+          action: "AUTH_LOGIN",
+          entity: "User",
+          entityId: user.id,
+        },
+      });
+
+      loginStep = "issue-session";
+      return {
+        user: this.serializeUser(user),
+        business: user.business,
+        ...this.createSessionResponse(await this.issueSessionTokens(user)),
+      };
+    } catch (error) {
+      console.error("[auth.login] failing step:", loginStep);
+      console.error("[auth.login] full error:", error);
+
+      if (error instanceof Error) {
+        console.error("[auth.login] error stack:", error.stack);
+      }
+
+      throw error;
     }
-
-    const passwordMatches = await compareHash(input.password, user.passwordHash);
-    if (!passwordMatches) {
-      throw new AppError("Invalid email or password.", 401, "INVALID_CREDENTIALS");
-    }
-
-    await prisma.activityLog.create({
-      data: {
-        businessId: user.businessId,
-        userId: user.id,
-        action: "AUTH_LOGIN",
-        entity: "User",
-        entityId: user.id,
-      },
-    });
-
-    return {
-      user: this.serializeUser(user),
-      business: user.business,
-      ...this.createSessionResponse(await this.issueSessionTokens(user)),
-    };
   }
 
   async logout(refreshToken: string | undefined) {

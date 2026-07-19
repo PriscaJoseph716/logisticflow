@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from "express";
 import { prisma } from "../config/database.js";
+import { defaultRoleDefinitions } from "../utils/default-authz.js";
 import { verifyAccessToken } from "../utils/jwt.js";
 import { AppError } from "../utils/app-error.js";
 
@@ -21,15 +22,7 @@ export async function requireAuth(request: Request, _response: Response, next: N
         businessId: payload.businessId,
       },
       include: {
-        role: {
-          include: {
-            rolePermissions: {
-              include: {
-                permission: true,
-              },
-            },
-          },
-        },
+        role: true,
       },
     });
 
@@ -38,11 +31,12 @@ export async function requireAuth(request: Request, _response: Response, next: N
       return;
     }
 
+    const role = user.role?.name ?? "Viewer";
     request.user = {
       id: user.id,
       businessId: user.businessId,
-      role: user.role?.name ?? "Viewer",
-      permissions: user.role?.rolePermissions.map((entry) => entry.permission.key) ?? [],
+      role,
+      permissions: defaultRoleDefinitions[role] ?? [],
       email: user.email,
     };
 

@@ -28,15 +28,7 @@ interface ChangePasswordInput {
 
 type AuthenticatedUser = Prisma.UserGetPayload<{
   include: {
-    role: {
-      include: {
-        rolePermissions: {
-          include: {
-            permission: true;
-          };
-        };
-      };
-    };
+    role: true;
     business: true;
   };
 }>;
@@ -48,6 +40,10 @@ interface PublicSessionTokens {
 
 interface PrivateSessionTokens extends PublicSessionTokens {
   refreshToken: string;
+}
+
+function getPermissionsForRole(roleName?: string | null) {
+  return roleName && defaultRoleDefinitions[roleName] ? defaultRoleDefinitions[roleName] : [];
 }
 
 export class AuthService {
@@ -97,15 +93,7 @@ export class AuthService {
           passwordHash,
         },
         include: {
-          role: {
-            include: {
-              rolePermissions: {
-                include: {
-                  permission: true,
-                },
-              },
-            },
-          },
+          role: true,
           business: true,
         },
       });
@@ -206,15 +194,7 @@ export class AuthService {
         user: {
           include: {
             business: true,
-            role: {
-              include: {
-                rolePermissions: {
-                  include: {
-                    permission: true,
-                  },
-                },
-              },
-            },
+            role: true,
           },
         },
       },
@@ -380,22 +360,14 @@ export class AuthService {
       where: { email },
       include: {
         business: true,
-        role: {
-          include: {
-            rolePermissions: {
-              include: {
-                permission: true,
-              },
-            },
-          },
-        },
+        role: true,
       },
     });
   }
 
   private async issueSessionTokens(user: AuthenticatedUser): Promise<PrivateSessionTokens> {
-    const permissions = user.role?.rolePermissions.map((entry) => entry.permission.key) ?? [];
     const role = user.role?.name ?? "Viewer";
+    const permissions = getPermissionsForRole(role);
     const tokenId = randomUUID();
     const accessToken = signAccessToken({
       sub: user.id,
@@ -449,7 +421,7 @@ export class AuthService {
       status: user.status,
       isEmailVerified: user.isEmailVerified,
       role: user.role?.name ?? "Viewer",
-      permissions: user.role?.rolePermissions.map((entry) => entry.permission.key) ?? [],
+      permissions: getPermissionsForRole(user.role?.name),
       createdAt: user.createdAt,
     };
   }

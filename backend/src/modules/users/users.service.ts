@@ -1,4 +1,5 @@
 import { prisma } from "../../config/database.js";
+import { defaultRoleDefinitions } from "../../utils/default-authz.js";
 import { AppError } from "../../utils/app-error.js";
 
 export class UsersService {
@@ -17,11 +18,14 @@ export class UsersService {
       throw new AppError("User not found.", 404, "USER_NOT_FOUND");
     }
 
-    return user;
+    return {
+      ...user,
+      permissions: defaultRoleDefinitions[user.role?.name ?? "Viewer"] ?? [],
+    };
   }
 
   async listUsers(businessId: string) {
-    return prisma.user.findMany({
+    const users = await prisma.user.findMany({
       where: { businessId },
       include: {
         role: true,
@@ -30,6 +34,11 @@ export class UsersService {
         createdAt: "desc",
       },
     });
+
+    return users.map((user) => ({
+      ...user,
+      permissions: defaultRoleDefinitions[user.role?.name ?? "Viewer"] ?? [],
+    }));
   }
 }
 

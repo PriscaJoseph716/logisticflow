@@ -8,6 +8,6 @@ export function createBusinessIdentifier(companyName: string) {
   const uniqueSuffix = Math.random().toString(36).slice(2, 8).toUpperCase();
   return {
     slug: slug || `business-${uniqueSuffix.toLowerCase()}`,
-    businessId: `BIZ-${uniqueSuffix}`,
+    businessId: `BUS-${uniqueSuffix}`,
   };
 }

@@ -38,7 +38,7 @@ function serializeUser(user: UserWithRole) {
     phone: user.phone,
     role: user.role,
     roleId: user.roleId,
-    roleName: user.customRole?.name ?? user.role,
+    roleName: user.role === "OWNER" ? "Owner" : user.customRole?.name ?? user.role,
     permissions,
     businessId: user.businessId,
     createdAt: user.createdAt,

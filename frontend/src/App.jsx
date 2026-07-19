@@ -2459,22 +2459,32 @@ function App() {
     setAuthLoading(false);
   };
 
+  const buildAuthSession = (payload) => ({
+    user: {
+      ...payload.user,
+      role: payload.user?.role ?? "OWNER",
+      roleName:
+        String(payload.user?.role ?? "").toUpperCase() === "OWNER"
+          ? "Owner"
+          : payload.user?.roleName ?? payload.user?.role ?? "Member",
+      permissions: payload.user?.permissions ?? [],
+    },
+    business: {
+      ...payload.business,
+      businessId: payload.business?.businessId ?? "",
+      name: payload.business?.name ?? payload.business?.companyName ?? "",
+      companyName: payload.business?.companyName ?? payload.business?.name ?? "",
+    },
+  });
+
   const handleLogin = async (event) => {
     event.preventDefault();
     setAuthSubmitting(true);
 
     try {
       const payload = await authApi.login(authForm);
-      const session = {
-        user: {
-          ...payload.user,
-          role: payload.user?.role ?? "OWNER",
-          roleName: payload.user?.roleName ?? payload.user?.role ?? "Owner",
-          permissions: payload.user?.permissions ?? [],
-        },
-        business: payload.business,
-      };
-
+      const session = buildAuthSession(payload);
+      persistSession(session);
       setAuthSession(session);
       setCurrentPage("dashboard");
       setAuthForm({ businessId: "", email: "", password: "" });
@@ -2492,21 +2502,13 @@ function App() {
 
     try {
       const payload = await authApi.register(values);
-      const session = {
-        user: {
-          ...payload.user,
-          role: payload.user?.role ?? "OWNER",
-          roleName: payload.user?.roleName ?? payload.user?.role ?? "Owner",
-          permissions: payload.user?.permissions ?? [],
-        },
-        business: payload.business,
-      };
-
+      const session = buildAuthSession(payload);
+      persistSession(session);
       setAuthSession(session);
       setCurrentPage("dashboard");
       setAuthSubmitting(false);
       await playWelcomeSplash(payload.user?.fullName);
-      showToast(`${t.toast.businessIdCreated} ${payload.business.businessId}. ${t.toast.workspaceCreated}`);
+      showToast(`${t.toast.businessIdCreated} ${session.business.businessId}. ${t.toast.workspaceCreated}`);
     } catch (error) {
       showToast(getApiErrorMessage(error, "Unable to create workspace."), "error");
       setAuthSubmitting(false);
@@ -3674,12 +3676,20 @@ function App() {
             </div>
             <div className="form-grid">
               <label>
+                {language === "sw" ? "Jina la mmiliki" : "Owner name"}
+                <input type="text" readOnly value={authSession?.user?.fullName ?? ""} />
+              </label>
+              <label>
                 {t.auth.companyName}
                 <input type="text" readOnly value={authSession?.business?.name ?? authSession?.business?.companyName ?? ""} />
               </label>
               <label>
                 {language === "sw" ? "Kitambulisho cha biashara" : "Business ID"}
-                <input type="text" readOnly value={authSession?.business?.businessId ?? ""} />
+                <input
+                  type="text"
+                  readOnly
+                  value={authSession?.business?.businessId || "—"}
+                />
               </label>
               <label>
                 {t.settings.supportEmail}
@@ -3690,7 +3700,11 @@ function App() {
                 <input
                   type="text"
                   readOnly
-                  value={authSession?.user?.roleName ?? authSession?.user?.role ?? t.settings.administrator}
+                  value={
+                    String(authSession?.user?.role ?? "").toUpperCase() === "OWNER"
+                      ? "Owner"
+                      : authSession?.user?.roleName ?? authSession?.user?.role ?? "Member"
+                  }
                 />
               </label>
             </div>
@@ -4138,6 +4152,13 @@ function App() {
             isMobile={isMobileSidebar}
             onToggle={toggleSidebar}
             onClose={closeMobileSidebar}
+            userName={authSession?.user?.fullName ?? ""}
+            userRole={
+              String(authSession?.user?.role ?? "").toUpperCase() === "OWNER"
+                ? "Owner"
+                : authSession?.user?.roleName ?? authSession?.user?.role ?? "Member"
+            }
+            onLogout={handleLogout}
           />
           <main className={`main-panel ${!isMobileSidebar && !sidebarOpen ? "sidebar-collapsed" : ""}`}>
             <button type="button" className="shell-menu-button" onClick={toggleSidebar} aria-label="Toggle sidebar">

@@ -4,10 +4,30 @@ function buildQuery(params) {
   return { params };
 }
 
+function formatRoleLabel(user) {
+  const role = String(user?.role ?? "").toUpperCase();
+  if (role === "OWNER") return "Owner";
+  return user?.roleName || user?.role || "Member";
+}
+
 function normalizeSessionPayload(payload) {
+  const user = payload.user ?? {};
+  const business = payload.business ?? {};
+
   return {
-    user: payload.user,
-    business: payload.business,
+    user: {
+      ...user,
+      role: user.role ?? "OWNER",
+      roleName: formatRoleLabel(user),
+      permissions: user.permissions ?? [],
+    },
+    business: {
+      ...business,
+      // Public tenant code used at login (e.g. LOG-0001)
+      businessId: business.businessId ?? "",
+      name: business.name ?? business.companyName ?? "",
+      companyName: business.companyName ?? business.name ?? "",
+    },
   };
 }
 
@@ -61,14 +81,7 @@ export const authApi = {
       const payload = await this.getCurrentUser();
       const session = normalizeSessionPayload(payload);
       setSession(session);
-      return {
-        ...session,
-        user: {
-          ...payload.user,
-          role: payload.user?.roleName ?? payload.user?.role ?? "OWNER",
-          permissions: payload.user?.permissions ?? [],
-        },
-      };
+      return session;
     } catch (_error) {
       clearSession();
       return null;

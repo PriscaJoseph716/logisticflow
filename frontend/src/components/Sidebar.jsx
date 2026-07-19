@@ -32,8 +32,29 @@ const iconMap = {
   settings: Settings,
 };
 
-export default function Sidebar({ items, currentPage, onNavigate, open, mobileOpen, isMobile, onToggle, onClose }) {
+function initials(name = "") {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return "LF";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+}
+
+export default function Sidebar({
+  items,
+  currentPage,
+  onNavigate,
+  open,
+  mobileOpen,
+  isMobile,
+  onToggle,
+  onClose,
+  userName = "",
+  userRole = "Owner",
+  onLogout,
+}) {
   const expanded = isMobile ? mobileOpen : open;
+  const displayName = userName.trim() || "User";
+  const displayRole = userRole.trim() || "Owner";
 
   return (
     <>
@@ -84,10 +105,12 @@ export default function Sidebar({ items, currentPage, onNavigate, open, mobileOp
         </nav>
 
         <div className="sidebar-user">
-          <div className="avatar">LF</div>
+          <div className="avatar" aria-hidden="true">
+            {initials(displayName)}
+          </div>
           <div className="sidebar-user-copy">
-            <strong>Ops Manager</strong>
-            <span>Administrator</span>
+            <strong title={displayName}>{displayName}</strong>
+            <span title={displayRole}>{displayRole}</span>
           </div>
           <button
             type="button"
@@ -96,7 +119,11 @@ export default function Sidebar({ items, currentPage, onNavigate, open, mobileOp
             title={!expanded && !isMobile ? "Log out" : undefined}
             data-tooltip={!expanded && !isMobile ? "Log out" : undefined}
             onClick={() => {
-              onNavigate("login");
+              if (onLogout) {
+                onLogout();
+              } else {
+                onNavigate("login");
+              }
               if (isMobile) onClose();
             }}
           >

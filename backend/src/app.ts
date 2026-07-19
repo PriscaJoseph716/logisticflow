@@ -2,7 +2,7 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 import express from "express";
 import helmet from "helmet";
-import { corsOptions } from "./config/cors.js";
+import { corsOptions, corsOriginGuard, corsOriginLogger } from "./config/cors.js";
 import { requestLogger } from "./config/logger.js";
 import { apiRateLimiter } from "./middlewares/rate-limit.middleware.js";
 import { notFoundHandler } from "./middlewares/not-found.middleware.js";
@@ -13,6 +13,8 @@ export function createApp() {
   const app = express();
 
   app.use(helmet());
+  app.use(corsOriginLogger);
+  app.use(corsOriginGuard);
   app.use(cors(corsOptions));
   app.options(/.*/, cors(corsOptions));
   app.use(requestLogger);

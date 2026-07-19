@@ -16,6 +16,7 @@ function isAllowedOrigin(origin: string | undefined) {
 export function corsMiddleware(request: Request, response: Response, next: NextFunction) {
   const origin = request.headers.origin;
   console.log("Incoming Origin:", origin);
+  console.log("Allowed Origins:", allowedOrigins);
 
   if (origin && allowedOrigins.includes(origin)) {
     response.header("Access-Control-Allow-Origin", origin);

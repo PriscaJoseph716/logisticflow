@@ -1,13 +1,18 @@
-export function createBusinessIdentifier(companyName: string) {
+export function formatBusinessId(sequence: number): string {
+  return `LOG-${String(sequence).padStart(4, "0")}`;
+}
+
+export function normalizeBusinessId(input: string): string {
+  return input.trim().toUpperCase();
+}
+
+export function slugifyCompanyName(companyName: string): string {
   const slug = companyName
     .toLowerCase()
+    .trim()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
-    .slice(0, 32);
+    .slice(0, 48);
 
-  const uniqueSuffix = Math.random().toString(36).slice(2, 8).toUpperCase();
-  return {
-    slug: slug || `business-${uniqueSuffix.toLowerCase()}`,
-    businessId: `BUS-${uniqueSuffix}`,
-  };
+  return slug || "business";
 }

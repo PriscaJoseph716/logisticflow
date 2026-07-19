@@ -1,7 +1,7 @@
 import axios from "axios";
 import { clearStoredSession, loadStoredSession, storeSession } from "./session";
 
-const LOCAL_API_URL = "http://127.0.0.1:5000/api";
+const LOCAL_API_URL = "http://127.0.0.1:5001/api";
 const DEPLOYED_API_URL = "https://logisticflow-uzop.onrender.com/api";
 const API_TIMEOUT_MS = 60000;
 
@@ -27,7 +27,6 @@ function resolveApiUrl() {
 }
 
 let inMemorySession = loadStoredSession();
-let refreshRequest = null;
 let authExpiredHandler = () => {};
 
 const api = axios.create({
@@ -38,10 +37,6 @@ const api = axios.create({
 
 function wait(ms) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
-}
-
-function isAuthRoute(url = "") {
-  return url.includes("/auth/login") || url.includes("/auth/register") || url.includes("/auth/refresh-token");
 }
 
 function shouldRetry(error, config) {
@@ -55,6 +50,10 @@ function shouldRetry(error, config) {
 
   const retryCount = config.__retryCount ?? 0;
   return retryCount < 1;
+}
+
+function isAuthRoute(url = "") {
+  return url.includes("/auth/login") || url.includes("/auth/register") || url.includes("/auth/logout");
 }
 
 export function getSession() {
@@ -79,63 +78,20 @@ export function configureApiClient({ onAuthExpired } = {}) {
   authExpiredHandler = onAuthExpired ?? (() => {});
 }
 
-async function refreshAccessToken() {
-  if (!refreshRequest) {
-    refreshRequest = api
-      .post("/auth/refresh-token", {})
-      .then((response) => {
-        const data = response.data?.data;
-        const nextSession = data
-          ? {
-              user: data.user,
-              business: data.business,
-              accessToken: data.tokens.accessToken,
-              expiresIn: data.tokens.expiresIn,
-            }
-          : null;
-
-        if (!nextSession) {
-          throw new Error("Failed to refresh session.");
-        }
-
-        setSession(nextSession);
-        return nextSession.accessToken;
-      })
-      .finally(() => {
-        refreshRequest = null;
-      });
-  }
-
-  return refreshRequest;
-}
-
-api.interceptors.request.use((config) => {
-  const session = getSession();
-  if (session?.accessToken) {
-    config.headers.Authorization = `Bearer ${session.accessToken}`;
-  }
-
-  return config;
-});
-
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config ?? {};
+    const requestUrl = originalRequest.url ?? "";
 
-    if (error.response?.status === 401 && !originalRequest.__isRetryAfterRefresh && !isAuthRoute(originalRequest.url)) {
-      try {
-        const nextToken = await refreshAccessToken();
-        originalRequest.__isRetryAfterRefresh = true;
-        originalRequest.headers = {
-          ...(originalRequest.headers ?? {}),
-          Authorization: `Bearer ${nextToken}`,
-        };
-        return api(originalRequest);
-      } catch (refreshError) {
-        clearSession();
-        authExpiredHandler(refreshError);
-        return Promise.reject(refreshError);
+    if (error.response?.status === 401 && !originalRequest.__authHandled && !isAuthRoute(requestUrl)) {
+      originalRequest.__authHandled = true;
+      const hadSession = Boolean(getSession()?.user);
+      clearSession();
+
+      // Only treat as expired session when the user was already signed in.
+      if (hadSession) {
+        authExpiredHandler(error);
       }
     }
 

@@ -1,6 +1,7 @@
 import {
   BarChart3,
   Building2,
+  ClipboardList,
   CreditCard,
   Hexagon,
   LayoutDashboard,
@@ -11,12 +12,15 @@ import {
   PanelLeftOpen,
   Settings,
   Truck,
+  UserPlus,
   Users,
   Wrench,
 } from "lucide-react";
 
 const iconMap = {
   dashboard: LayoutDashboard,
+  "my-work": ClipboardList,
+  "assign-work": UserPlus,
   fleet: Truck,
   shipments: Package,
   deliveries: MapPin,
@@ -56,7 +60,7 @@ export default function Sidebar({ items, currentPage, onNavigate, open, mobileOp
 
         <nav className="sidebar-nav">
           {items.map((item) => {
-            const Icon = iconMap[item.id];
+            const Icon = iconMap[item.id] ?? LayoutDashboard;
             const active = currentPage === item.id;
 
             return (

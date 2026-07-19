@@ -1,33 +1,19 @@
 import cookieParser from "cookie-parser";
 import express from "express";
-import helmet from "helmet";
+import path from "node:path";
 import { corsMiddleware } from "./config/cors.js";
-import { requestLogger } from "./config/logger.js";
-import { apiRateLimiter } from "./middlewares/rate-limit.middleware.js";
-import { notFoundHandler } from "./middlewares/not-found.middleware.js";
 import { errorHandler } from "./middlewares/error.middleware.js";
-import { apiRouter } from "./routes/index.js";
+import { router } from "./routes/index.js";
 
 export function createApp() {
   const app = express();
 
-  app.use(helmet());
+  app.set("trust proxy", 1);
   app.use(corsMiddleware);
-  app.use(requestLogger);
-  app.use(express.json({ limit: "10mb" }));
-  app.use(express.urlencoded({ extended: true }));
+  app.use(express.json({ limit: "12mb" }));
   app.use(cookieParser());
-  app.use(apiRateLimiter);
-
-  app.get("/", (_request, response) => {
-    response.json({
-      success: true,
-      message: "LOGISTICSFLOW backend is running.",
-    });
-  });
-
-  app.use("/api", apiRouter);
-  app.use(notFoundHandler);
+  app.use("/uploads", express.static(path.resolve(process.cwd(), "uploads")));
+  app.use(router);
   app.use(errorHandler);
 
   return app;

@@ -6,634 +6,86 @@ datasource db {
   provider = "postgresql"
 }
 
-enum UserStatus {
-  ACTIVE
-  INVITED
-  DISABLED
-}
-
-enum VehicleStatus {
-  ACTIVE
-  INACTIVE
-  MAINTENANCE
-}
-
-enum DriverStatus {
-  ACTIVE
-  INACTIVE
-  ON_LEAVE
-}
-
-enum ShipmentStatus {
-  PENDING
-  ASSIGNED
-  IN_TRANSIT
-  DELAYED
-  DELIVERED
-  CANCELLED
-}
-
-enum DeliveryStatus {
-  SCHEDULED
-  IN_TRANSIT
-  COMPLETED
-  FAILED
-}
-
-enum MaintenanceStatus {
-  SCHEDULED
-  IN_PROGRESS
-  COMPLETED
-  CANCELLED
-  OVERDUE
-}
-
-enum InvoiceStatus {
-  DRAFT
-  SENT
-  PARTIAL
-  PAID
-  OVERDUE
-  CANCELLED
-}
-
-enum PaymentStatus {
-  PENDING
-  COMPLETED
-  FAILED
-  REFUNDED
-}
-
-enum PaymentMethod {
-  CASH
-  BANK_TRANSFER
-  MOBILE_MONEY
-  CARD
-  OTHER
-}
-
-enum NotificationType {
-  MAINTENANCE_DUE
-  INSURANCE_EXPIRY
-  LICENSE_EXPIRY
-  SHIPMENT_DELAYED
-  INVOICE_DUE
-  GENERAL
-}
-
-enum NotificationStatus {
-  UNREAD
-  READ
-  DISMISSED
-}
-
-enum ReportFormat {
-  PDF
-  EXCEL
-  CSV
-}
-
-enum ReportStatus {
-  QUEUED
-  GENERATED
-  FAILED
-}
-
-enum DashboardWidgetStatus {
-  ACTIVE
-  INACTIVE
-}
-
-enum DashboardWidgetType {
-  METRIC
-  CHART
-  TABLE
-  FEED
-}
-
 model Business {
-  id                      String                   @id @default(cuid())
-  businessId              String                   @unique @map("business_id")
-  name                    String
-  slug                    String                   @unique
-  email                   String
-  ownerUserId             String?                  @map("owner_user_id")
-  createdAt               DateTime                 @default(now()) @map("created_at")
-  updatedAt               DateTime                 @updatedAt @map("updated_at")
-  users                   User[]
-  roles                   Role[]
-  permissions             Permission[]
-  rolePermissions         RolePermission[]
-  settings                Setting?
-  activityLogs            ActivityLog[]
-  auditLogs               AuditLog[]
-  refreshTokens           RefreshToken[]
-  passwordResetTokens     PasswordResetToken[]
-  emailVerificationTokens EmailVerificationToken[]
-  vehicles                Vehicle[]
-  drivers                 Driver[]
-  customers               Customer[]
-  suppliers               Supplier[]
-  shipments               Shipment[]
-  deliveries              Delivery[]
-  maintenanceRecords      MaintenanceRecord[]
-  maintenanceParts        MaintenancePart[]
-  maintenanceAttachments  MaintenanceAttachment[]
-  invoices                Invoice[]
-  payments                Payment[]
-  notifications           Notification[]
-  reports                 Report[]
-  dashboardWidgets        DashboardWidget[]
-
-  @@map("businesses")
-}
-
-model User {
-  id               String                  @id @default(cuid())
-  businessId       String                  @map("business_id")
-  roleId           String?                 @map("role_id")
-  fullName         String                  @map("full_name")
-  email            String                  @unique
-  passwordHash     String                  @map("password_hash")
-  status           UserStatus              @default(ACTIVE)
-  isEmailVerified  Boolean                 @default(false) @map("is_email_verified")
-  createdAt        DateTime                @default(now()) @map("created_at")
-  updatedAt        DateTime                @updatedAt @map("updated_at")
-  business         Business                @relation(fields: [businessId], references: [businessId], onDelete: Cascade)
-  role             Role?                   @relation(fields: [roleId], references: [id], onDelete: SetNull)
-  activityLogs     ActivityLog[]
-  auditLogs        AuditLog[]
-  refreshTokens    RefreshToken[]
-  resetTokens      PasswordResetToken[]
-  verifyTokens     EmailVerificationToken[]
-
-  @@index([businessId])
-  @@unique([businessId, email])
-  @@map("users")
+  id          String       @id @default(uuid())
+  businessId  String       @unique
+  companyName String
+  slug        String       @unique
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  users       User[]
+  roles       Role[]
+  assignments Assignment[]
 }
 
 model Role {
-  id              String           @id @default(cuid())
-  businessId      String           @map("business_id")
-  name            String
-  description     String?
-  isSystem        Boolean          @default(false) @map("is_system")
-  createdAt       DateTime         @default(now()) @map("created_at")
-  updatedAt       DateTime         @updatedAt @map("updated_at")
-  business        Business         @relation(fields: [businessId], references: [businessId], onDelete: Cascade)
-  users           User[]
-  rolePermissions RolePermission[]
+  id          String   @id @default(uuid())
+  businessId  String
+  business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  name        String
+  description String   @default("")
+  permissions String   @default("[]")
+  isSystem    Boolean  @default(false)
+  users       User[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@unique([businessId, name])
   @@index([businessId])
-  @@map("roles")
 }
 
-model Permission {
-  id              String           @id @default(cuid())
-  businessId      String           @map("business_id")
-  key             String
-  resource        String
-  action          String
-  description     String?
-  createdAt       DateTime         @default(now()) @map("created_at")
-  updatedAt       DateTime         @updatedAt @map("updated_at")
-  business        Business         @relation(fields: [businessId], references: [businessId], onDelete: Cascade)
-  rolePermissions RolePermission[]
+model User {
+  id           String       @id @default(uuid())
+  fullName     String
+  email        String
+  passwordHash String
+  phone        String?
+  role         String       @default("OWNER")
+  roleId       String?
+  customRole   Role?        @relation(fields: [roleId], references: [id], onDelete: SetNull)
+  businessId   String
+  business     Business     @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  assignments  Assignment[]
+  proofs       Proof[]
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
 
-  @@unique([businessId, key])
+  @@unique([businessId, email])
   @@index([businessId])
-  @@map("permissions")
+  @@index([email])
+  @@index([roleId])
 }
 
-model RolePermission {
-  id            String      @id @default(cuid())
-  businessId    String      @map("business_id")
-  roleId        String      @map("role_id")
-  permissionId  String      @map("permission_id")
-  createdAt     DateTime    @default(now()) @map("created_at")
-  updatedAt     DateTime    @updatedAt @map("updated_at")
-  business      Business    @relation(fields: [businessId], references: [businessId], onDelete: Cascade)
-  role          Role        @relation(fields: [roleId], references: [id], onDelete: Cascade)
-  permission    Permission  @relation(fields: [permissionId], references: [id], onDelete: Cascade)
-
-  @@unique([businessId, roleId, permissionId])
-  @@index([businessId])
-  @@map("role_permissions")
-}
-
-model Setting {
-  id                  String    @id @default(cuid())
-  businessId          String    @map("business_id")
-  timezone            String    @default("Africa/Dar_es_Salaam")
-  locale              String    @default("en")
-  currency            String    @default("TZS")
-  theme               String    @default("dark")
-  notificationsJson   Json?     @map("notifications_json")
-  createdAt           DateTime  @default(now()) @map("created_at")
-  updatedAt           DateTime  @updatedAt @map("updated_at")
-  business            Business  @relation(fields: [businessId], references: [businessId], onDelete: Cascade)
-
-  @@unique([businessId])
-  @@map("settings")
-}
-
-model ActivityLog {
-  id          String    @id @default(cuid())
-  businessId  String    @map("business_id")
-  userId      String?   @map("user_id")
-  action      String
-  entity      String
-  entityId    String?   @map("entity_id")
-  metadata    Json?
-  createdAt   DateTime  @default(now()) @map("created_at")
-  business    Business  @relation(fields: [businessId], references: [businessId], onDelete: Cascade)
-  user        User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
-
-  @@index([businessId, createdAt])
-  @@map("activity_logs")
-}
-
-model AuditLog {
-  id          String    @id @default(cuid())
-  businessId  String    @map("business_id")
-  userId      String?   @map("user_id")
-  action      String
-  entity      String
-  entityId    String?   @map("entity_id")
-  beforeJson  Json?     @map("before_json")
-  afterJson   Json?     @map("after_json")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  business    Business  @relation(fields: [businessId], references: [businessId], onDelete: Cascade)
-  user        User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
-
-  @@index([businessId, createdAt])
-  @@map("audit_logs")
-}
-
-model RefreshToken {
-  id          String    @id @default(cuid())
-  businessId  String    @map("business_id")
-  userId      String    @map("user_id")
-  tokenHash   String    @map("token_hash")
-  expiresAt   DateTime  @map("expires_at")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
-  business    Business  @relation(fields: [businessId], references: [businessId], onDelete: Cascade)
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([businessId, userId])
-  @@map("refresh_tokens")
-}
-
-model PasswordResetToken {
-  id          String    @id @default(cuid())
-  businessId  String    @map("business_id")
-  userId      String    @map("user_id")
-  tokenHash   String    @map("token_hash")
-  expiresAt   DateTime  @map("expires_at")
-  usedAt      DateTime? @map("used_at")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
-  business    Business  @relation(fields: [businessId], references: [businessId], onDelete: Cascade)
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([businessId, userId])
-  @@map("password_reset_tokens")
-}
-
-model EmailVerificationToken {
-  id          String    @id @default(cuid())
-  businessId  String    @map("business_id")
-  userId      String    @map("user_id")
-  tokenHash   String    @map("token_hash")
-  expiresAt   DateTime  @map("expires_at")
-  usedAt      DateTime? @map("used_at")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
-  business    Business  @relation(fields: [businessId], references: [businessId], onDelete: Cascade)
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([businessId, userId])
-  @@map("email_verification_tokens")
-}
-
-model Driver {
-  id                String        @id @default(cuid())
-  businessId        String        @map("business_id")
-  fullName          String        @map("full_name")
-  phone             String
-  email             String?
-  licenseNumber     String        @map("license_number")
-  licenseExpiry     DateTime?     @map("license_expiry")
-  status            DriverStatus  @default(ACTIVE)
-  address           String?
-  emergencyContact  String?       @map("emergency_contact")
-  createdAt         DateTime      @default(now()) @map("created_at")
-  updatedAt         DateTime      @updatedAt @map("updated_at")
-  business          Business      @relation(fields: [businessId], references: [businessId], onDelete: Cascade)
-  vehicles          Vehicle[]     @relation("AssignedDriverVehicles")
-  shipments         Shipment[]
-  deliveries        Delivery[]
+model Assignment {
+  id          String    @id @default(uuid())
+  businessId  String
+  business    Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  workerId    String
+  worker      User      @relation(fields: [workerId], references: [id], onDelete: Cascade)
+  type        String
+  title       String
+  description String    @default("")
+  status      String    @default("PENDING")
+  dueDate     DateTime?
+  proofs      Proof[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   @@index([businessId])
-  @@map("drivers")
+  @@index([workerId])
+  @@index([status])
 }
 
-model Vehicle {
-  id                String          @id @default(cuid())
-  businessId        String          @map("business_id")
-  name              String
-  headPlateNumber   String          @map("head_plate_number")
-  trailerPlateNumber String?        @map("trailer_plate_number")
-  vehicleType       String          @map("vehicle_type")
-  category          String?
-  status            VehicleStatus   @default(ACTIVE)
-  insuranceExpiry   DateTime?       @map("insurance_expiry")
-  licenseExpiry     DateTime?       @map("license_expiry")
-  documentsJson     Json?           @map("documents_json")
-  mileage           Int             @default(0)
-  fuelLevel         Float           @default(0) @map("fuel_level")
-  fuelType          String?         @map("fuel_type")
-  assignedDriverId  String?         @map("assigned_driver_id")
-  createdAt         DateTime        @default(now()) @map("created_at")
-  updatedAt         DateTime        @updatedAt @map("updated_at")
-  business          Business        @relation(fields: [businessId], references: [businessId], onDelete: Cascade)
-  assignedDriver    Driver?         @relation("AssignedDriverVehicles", fields: [assignedDriverId], references: [id], onDelete: SetNull)
-  shipments         Shipment[]
-  deliveries        Delivery[]
-  maintenanceRecords MaintenanceRecord[]
+model Proof {
+  id           String     @id @default(uuid())
+  assignmentId String
+  assignment   Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  uploadedById String
+  uploadedBy   User       @relation(fields: [uploadedById], references: [id], onDelete: Cascade)
+  fileName     String
+  filePath     String
+  mimeType     String
+  createdAt    DateTime   @default(now())
 
-  @@index([businessId])
-  @@map("vehicles")
-}
-
-model Customer {
-  id              String      @id @default(cuid())
-  businessId      String      @map("business_id")
-  customerCode    String      @map("customer_code")
-  name            String
-  email           String?
-  phone           String?
-  location        String?
-  contactPerson   String?     @map("contact_person")
-  notes           String?
-  createdAt       DateTime    @default(now()) @map("created_at")
-  updatedAt       DateTime    @updatedAt @map("updated_at")
-  business        Business    @relation(fields: [businessId], references: [businessId], onDelete: Cascade)
-  shipments       Shipment[]
-  deliveries      Delivery[]
-  invoices        Invoice[]
-  payments        Payment[]
-
-  @@unique([businessId, customerCode])
-  @@index([businessId])
-  @@map("customers")
-}
-
-model Supplier {
-  id              String      @id @default(cuid())
-  businessId      String      @map("business_id")
-  supplierCode    String      @map("supplier_code")
-  name            String
-  contact         String?
-  location        String?
-  buyingPrice     Float?      @map("buying_price")
-  sellingPrice    Float?      @map("selling_price")
-  createdAt       DateTime    @default(now()) @map("created_at")
-  updatedAt       DateTime    @updatedAt @map("updated_at")
-  business        Business    @relation(fields: [businessId], references: [businessId], onDelete: Cascade)
-  shipments       Shipment[]
-
-  @@unique([businessId, supplierCode])
-  @@index([businessId])
-  @@map("suppliers")
-}
-
-model Shipment {
-  id                String          @id @default(cuid())
-  businessId        String          @map("business_id")
-  shipmentCode      String          @map("shipment_code")
-  customerId        String?         @map("customer_id")
-  supplierId        String?         @map("supplier_id")
-  vehicleId         String?         @map("vehicle_id")
-  driverId          String?         @map("driver_id")
-  origin            String
-  destination       String
-  cargoDescription  String?         @map("cargo_description")
-  quantityTons      Float?          @map("quantity_tons")
-  status            ShipmentStatus  @default(PENDING)
-  deliveryStatus    DeliveryStatus  @default(SCHEDULED) @map("delivery_status")
-  scheduledDate     DateTime?       @map("scheduled_date")
-  pickupDate        DateTime?       @map("pickup_date")
-  deliveredAt       DateTime?       @map("delivered_at")
-  trackingReference String?         @map("tracking_reference")
-  notes             String?
-  createdAt         DateTime        @default(now()) @map("created_at")
-  updatedAt         DateTime        @updatedAt @map("updated_at")
-  business          Business        @relation(fields: [businessId], references: [businessId], onDelete: Cascade)
-  customer          Customer?       @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  supplier          Supplier?       @relation(fields: [supplierId], references: [id], onDelete: SetNull)
-  vehicle           Vehicle?        @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
-  driver            Driver?         @relation(fields: [driverId], references: [id], onDelete: SetNull)
-  delivery          Delivery?
-  invoices          Invoice[]
-
-  @@unique([businessId, shipmentCode])
-  @@index([businessId])
-  @@map("shipments")
-}
-
-model Delivery {
-  id               String          @id @default(cuid())
-  businessId       String          @map("business_id")
-  deliveryCode     String          @map("delivery_code")
-  shipmentId       String?         @unique @map("shipment_id")
-  customerId       String?         @map("customer_id")
-  vehicleId        String?         @map("vehicle_id")
-  driverId         String?         @map("driver_id")
-  status           DeliveryStatus  @default(SCHEDULED)
-  deliveredAt      DateTime?       @map("delivered_at")
-  proofOfDeliveryUrl String?       @map("proof_of_delivery_url")
-  recipientName    String?         @map("recipient_name")
-  recipientPhone   String?         @map("recipient_phone")
-  notes            String?
-  createdAt        DateTime        @default(now()) @map("created_at")
-  updatedAt        DateTime        @updatedAt @map("updated_at")
-  business         Business        @relation(fields: [businessId], references: [businessId], onDelete: Cascade)
-  shipment         Shipment?       @relation(fields: [shipmentId], references: [id], onDelete: SetNull)
-  customer         Customer?       @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  vehicle          Vehicle?        @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
-  driver           Driver?         @relation(fields: [driverId], references: [id], onDelete: SetNull)
-
-  @@unique([businessId, deliveryCode])
-  @@index([businessId])
-  @@map("deliveries")
-}
-
-model MaintenanceRecord {
-  id                 String             @id @default(cuid())
-  businessId         String             @map("business_id")
-  vehicleId          String             @map("vehicle_id")
-  maintenanceDate    DateTime           @map("maintenance_date")
-  maintenanceType    String             @map("maintenance_type")
-  workshop           String
-  mechanic           String
-  description        String?
-  currentMileage     Int                @map("current_mileage")
-  laborCost          Float              @default(0) @map("labor_cost")
-  partsCost          Float              @default(0) @map("parts_cost")
-  otherCost          Float              @default(0) @map("other_cost")
-  totalCost          Float              @default(0) @map("total_cost")
-  nextServiceDate    DateTime?          @map("next_service_date")
-  nextServiceMileage Int?               @map("next_service_mileage")
-  status             MaintenanceStatus  @default(SCHEDULED)
-  timelineJson       Json?              @map("timeline_json")
-  upcomingServiceJson Json?             @map("upcoming_service_json")
-  createdAt          DateTime           @default(now()) @map("created_at")
-  updatedAt          DateTime           @updatedAt @map("updated_at")
-  business           Business           @relation(fields: [businessId], references: [businessId], onDelete: Cascade)
-  vehicle            Vehicle            @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
-  parts              MaintenancePart[]
-  attachments        MaintenanceAttachment[]
-
-  @@index([businessId, vehicleId])
-  @@map("maintenance_records")
-}
-
-model MaintenancePart {
-  id             String             @id @default(cuid())
-  businessId     String             @map("business_id")
-  maintenanceId  String             @map("maintenance_id")
-  partName       String             @map("part_name")
-  brand          String?
-  quantity       Int                @default(1)
-  unitPrice      Float              @default(0) @map("unit_price")
-  totalPrice     Float              @default(0) @map("total_price")
-  supplier       String?
-  createdAt      DateTime           @default(now()) @map("created_at")
-  updatedAt      DateTime           @updatedAt @map("updated_at")
-  business       Business           @relation(fields: [businessId], references: [businessId], onDelete: Cascade)
-  maintenance    MaintenanceRecord  @relation(fields: [maintenanceId], references: [id], onDelete: Cascade)
-
-  @@index([businessId, maintenanceId])
-  @@map("maintenance_parts")
-}
-
-model MaintenanceAttachment {
-  id             String             @id @default(cuid())
-  businessId     String             @map("business_id")
-  maintenanceId  String             @map("maintenance_id")
-  category       String
-  fileName       String             @map("file_name")
-  fileUrl        String             @map("file_url")
-  mimeType       String?            @map("mime_type")
-  createdAt      DateTime           @default(now()) @map("created_at")
-  updatedAt      DateTime           @updatedAt @map("updated_at")
-  business       Business           @relation(fields: [businessId], references: [businessId], onDelete: Cascade)
-  maintenance    MaintenanceRecord  @relation(fields: [maintenanceId], references: [id], onDelete: Cascade)
-
-  @@index([businessId, maintenanceId])
-  @@map("maintenance_attachments")
-}
-
-model Invoice {
-  id             String         @id @default(cuid())
-  businessId     String         @map("business_id")
-  invoiceNumber  String         @map("invoice_number")
-  customerId     String?        @map("customer_id")
-  shipmentId     String?        @map("shipment_id")
-  issueDate      DateTime       @map("issue_date")
-  dueDate        DateTime       @map("due_date")
-  subtotal       Float          @default(0)
-  taxAmount      Float          @default(0) @map("tax_amount")
-  totalAmount    Float          @default(0) @map("total_amount")
-  paidAmount     Float          @default(0) @map("paid_amount")
-  balanceAmount  Float          @default(0) @map("balance_amount")
-  status         InvoiceStatus  @default(DRAFT)
-  notes          String?
-  createdAt      DateTime       @default(now()) @map("created_at")
-  updatedAt      DateTime       @updatedAt @map("updated_at")
-  business       Business       @relation(fields: [businessId], references: [businessId], onDelete: Cascade)
-  customer       Customer?      @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  shipment       Shipment?      @relation(fields: [shipmentId], references: [id], onDelete: SetNull)
-  payments       Payment[]
-
-  @@unique([businessId, invoiceNumber])
-  @@index([businessId])
-  @@map("invoices")
-}
-
-model Payment {
-  id            String         @id @default(cuid())
-  businessId    String         @map("business_id")
-  invoiceId     String?        @map("invoice_id")
-  customerId    String?        @map("customer_id")
-  amount        Float
-  paymentDate   DateTime       @map("payment_date")
-  method        PaymentMethod
-  reference     String?
-  status        PaymentStatus  @default(PENDING)
-  notes         String?
-  createdAt     DateTime       @default(now()) @map("created_at")
-  updatedAt     DateTime       @updatedAt @map("updated_at")
-  business      Business       @relation(fields: [businessId], references: [businessId], onDelete: Cascade)
-  invoice       Invoice?       @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
-  customer      Customer?      @relation(fields: [customerId], references: [id], onDelete: SetNull)
-
-  @@index([businessId])
-  @@map("payments")
-}
-
-model Notification {
-  id             String              @id @default(cuid())
-  businessId     String              @map("business_id")
-  type           NotificationType
-  title          String
-  message        String
-  status         NotificationStatus  @default(UNREAD)
-  relatedEntity  String?             @map("related_entity")
-  relatedEntityId String?            @map("related_entity_id")
-  dueDate        DateTime?           @map("due_date")
-  metadataJson   Json?               @map("metadata_json")
-  createdAt      DateTime            @default(now()) @map("created_at")
-  updatedAt      DateTime            @updatedAt @map("updated_at")
-  business       Business            @relation(fields: [businessId], references: [businessId], onDelete: Cascade)
-
-  @@index([businessId])
-  @@map("notifications")
-}
-
-model Report {
-  id            String        @id @default(cuid())
-  businessId    String        @map("business_id")
-  name          String
-  module        String
-  format        ReportFormat
-  status        ReportStatus  @default(QUEUED)
-  filtersJson   Json?         @map("filters_json")
-  fileUrl       String?       @map("file_url")
-  generatedAt   DateTime?     @map("generated_at")
-  createdAt     DateTime      @default(now()) @map("created_at")
-  updatedAt     DateTime      @updatedAt @map("updated_at")
-  business      Business      @relation(fields: [businessId], references: [businessId], onDelete: Cascade)
-
-  @@index([businessId])
-  @@map("reports")
-}
-
-model DashboardWidget {
-  id            String                 @id @default(cuid())
-  businessId    String                 @map("business_id")
-  title         String
-  widgetType    DashboardWidgetType    @map("widget_type")
-  status        DashboardWidgetStatus  @default(ACTIVE)
-  position      Int                    @default(0)
-  description   String?
-  createdAt     DateTime               @default(now()) @map("created_at")
-  updatedAt     DateTime               @updatedAt @map("updated_at")
-  business      Business               @relation(fields: [businessId], references: [businessId], onDelete: Cascade)
-
-  @@index([businessId])
-  @@map("dashboard_widgets")
+  @@index([assignmentId])
 }

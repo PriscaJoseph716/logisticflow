@@ -40,10 +40,12 @@ import {
 } from "lucide-react";
 import Sidebar from "./components/Sidebar";
 import MobileNav from "./components/MobileNav";
+import BootSplash from "./components/auth/BootSplash";
 import SignUpPage from "./components/auth/SignUpPage";
 import { emptyAppData, navigation } from "./data/appConfig";
 import { configureApiClient, getApiErrorMessage, setSession as persistSession, clearSession as clearPersistedSession } from "./lib/apiClient";
 import {
+  assignmentsApi,
   authApi,
   billingApi,
   customersApi,
@@ -54,8 +56,10 @@ import {
   notificationsApi,
   paymentsApi,
   reportsApi,
+  rolesApi,
   shipmentsApi,
   suppliersApi,
+  teamApi,
   uploadsApi,
 } from "./lib/api";
 import {
@@ -73,6 +77,8 @@ const translations = {
   en: {
     pages: {
       dashboard: "Dashboard",
+      "my-work": "My Work",
+      "assign-work": "Assign Work",
       fleet: "Fleet",
       shipments: "Shipments",
       deliveries: "Deliveries",
@@ -85,6 +91,8 @@ const translations = {
     },
     nav: {
       dashboard: "Dashboard",
+      "my-work": "My Work",
+      "assign-work": "Assign Work",
       fleet: "Fleet",
       shipments: "Shipments",
       deliveries: "Deliveries",
@@ -97,6 +105,8 @@ const translations = {
     },
     mobile: {
       dashboard: "Home",
+      "my-work": "Work",
+      "assign-work": "Assign",
       fleet: "Fleet",
       maintenance: "Service",
       deliveries: "Track",
@@ -155,6 +165,7 @@ const translations = {
       signupTitle: "Create account",
       signupText: "Set up your operations hub for fleet, dispatch, billing, and reporting.",
       companyName: "Company name",
+      businessId: "Business ID",
       email: "Email",
       password: "Password",
       createAccount: "Create account",
@@ -348,7 +359,12 @@ const translations = {
       filterStatus: "Status",
       reportsTitle: "Maintenance Exports",
       reportsText: "Filter records and export them for audit or review.",
-      permissionNotice: "Only users with maintenance permissions can create, edit, delete, approve, or export.",
+      permissionView: "View",
+      permissionCreate: "Create",
+      permissionEdit: "Edit",
+      permissionDelete: "Delete",
+      permissionApprove: "Approve",
+      permissionExport: "Export",
     },
     billing: {
       intro: "Track invoices, payments, and outstanding balances.",
@@ -371,13 +387,33 @@ const translations = {
       outstandingText: "Open balances that still need collection.",
     },
     settings: {
-      intro: "Configure your workspace, team access, and contact details.",
+      intro: "Manage your company, roles, and worker login access.",
       companyProfile: "Company Profile",
       supportEmail: "Support email",
       phone: "Phone",
       workspaceType: "Workspace type",
-      teamRoles: "Team Roles",
-      inviteUser: "Invite User",
+      teamRoles: "Team & Roles",
+      inviteUser: "Add Worker",
+      createRole: "Create Role",
+      workerName: "Worker full name",
+      workerEmail: "Worker email",
+      workerPassword: "Temporary password",
+      workerPhone: "Phone (optional)",
+      selectRole: "Assign role",
+      roleName: "Role name",
+      roleDescription: "Role description",
+      rolePermissions: "Permissions",
+      workers: "Workers",
+      roles: "Roles",
+      assignWork: "Assign Work",
+      assignmentType: "Work type",
+      assignmentTitle: "Task title",
+      assignmentDescription: "Task details",
+      deliveryType: "Delivery",
+      maintenanceType: "Maintenance",
+      assignWorker: "Assign to worker",
+      createAssignment: "Create assignment",
+      loginHint: "Workers sign in with your Business ID + their email + password.",
       administrator: "Administrator",
       enterprise: "Enterprise logistics SaaS",
     },
@@ -449,12 +485,15 @@ const translations = {
       confirmMaintenanceDelete: "Delete this maintenance record?",
       signedIn: "Signed in successfully",
       workspaceCreated: "Workspace created successfully",
+      businessIdCreated: "Your Business ID is",
       deliveryUpdated: "Delivery updated",
     },
   },
   sw: {
     pages: {
       dashboard: "Dashibodi",
+      "my-work": "Kazi Yangu",
+      "assign-work": "Gawa Kazi",
       fleet: "Magari",
       shipments: "Mizigo",
       deliveries: "Uwasilishaji",
@@ -467,6 +506,8 @@ const translations = {
     },
     nav: {
       dashboard: "Dashibodi",
+      "my-work": "Kazi Yangu",
+      "assign-work": "Gawa Kazi",
       fleet: "Magari",
       shipments: "Mizigo",
       deliveries: "Uwasilishaji",
@@ -479,6 +520,8 @@ const translations = {
     },
     mobile: {
       dashboard: "Nyumbani",
+      "my-work": "Kazi",
+      "assign-work": "Gawa",
       fleet: "Magari",
       maintenance: "Service",
       deliveries: "Fuatilia",
@@ -537,6 +580,7 @@ const translations = {
       signupTitle: "Fungua akaunti",
       signupText: "Sanidi kituo chako cha magari, dispatch, malipo na ripoti.",
       companyName: "Jina la kampuni",
+      businessId: "Kitambulisho cha Biashara",
       email: "Barua pepe",
       password: "Nenosiri",
       createAccount: "Tengeneza akaunti",
@@ -730,7 +774,12 @@ const translations = {
       filterStatus: "Hali",
       reportsTitle: "Exports za Matengenezo",
       reportsText: "Chuja rekodi na uzipakue kwa ukaguzi au mapitio.",
-      permissionNotice: "Ni watumiaji wenye ruhusa za maintenance tu wanaoweza kuongeza, kuhariri, kufuta, kuidhinisha au kupakua.",
+      permissionView: "Angalia",
+      permissionCreate: "Ongeza",
+      permissionEdit: "Hariri",
+      permissionDelete: "Futa",
+      permissionApprove: "Idhinisha",
+      permissionExport: "Pakua",
     },
     billing: {
       intro: "Fuatilia ankara, malipo na deni lililobaki.",
@@ -753,13 +802,33 @@ const translations = {
       outstandingText: "Madeni ambayo bado yanahitaji kukusanywa.",
     },
     settings: {
-      intro: "Sanidi mfumo wako, ruhusa za timu na mawasiliano.",
+      intro: "Simamia kampuni, majukumu, na akaunti za wafanyakazi.",
       companyProfile: "Taarifa za Kampuni",
       supportEmail: "Barua pepe ya msaada",
       phone: "Simu",
       workspaceType: "Aina ya mfumo",
-      teamRoles: "Majukumu ya Timu",
-      inviteUser: "Alika Mtumiaji",
+      teamRoles: "Timu na Majukumu",
+      inviteUser: "Ongeza Mfanyakazi",
+      createRole: "Tengeneza Jukumu",
+      workerName: "Jina kamili la mfanyakazi",
+      workerEmail: "Barua pepe ya mfanyakazi",
+      workerPassword: "Nenosiri la muda",
+      workerPhone: "Simu (si lazima)",
+      selectRole: "Teua jukumu",
+      roleName: "Jina la jukumu",
+      roleDescription: "Maelezo ya jukumu",
+      rolePermissions: "Ruhusa",
+      workers: "Wafanyakazi",
+      roles: "Majukumu",
+      assignWork: "Gawa Kazi",
+      assignmentType: "Aina ya kazi",
+      assignmentTitle: "Kichwa cha kazi",
+      assignmentDescription: "Maelezo ya kazi",
+      deliveryType: "Uwasilishaji",
+      maintenanceType: "Matengenezo",
+      assignWorker: "Mpe mfanyakazi",
+      createAssignment: "Tengeneza kazi",
+      loginHint: "Wafanyakazi wanaingia kwa Business ID yako + barua pepe + nenosiri.",
       administrator: "Msimamizi",
       enterprise: "Mfumo wa biashara wa usafirishaji",
     },
@@ -831,6 +900,7 @@ const translations = {
       confirmMaintenanceDelete: "Ufute rekodi hii ya matengenezo?",
       signedIn: "Umeingia kwa mafanikio",
       workspaceCreated: "Mfumo umetengenezwa kwa mafanikio",
+      businessIdCreated: "Kitambulisho chako cha biashara ni",
       deliveryUpdated: "Uwasilishaji umesasishwa",
     },
   },
@@ -1027,10 +1097,12 @@ function LanguagePicker({ label, value, onChange, englishLabel, swahiliLabel }) 
   return (
     <label className="language-picker">
       <span>{label}</span>
-      <select value={value} onChange={(event) => onChange(event.target.value)} aria-label={label}>
-        <option value="en">{englishLabel}</option>
-        <option value="sw">{swahiliLabel}</option>
-      </select>
+      <div className="language-select-wrap">
+        <select value={value} onChange={(event) => onChange(event.target.value)} aria-label={label}>
+          <option value="en">{englishLabel}</option>
+          <option value="sw">{swahiliLabel}</option>
+        </select>
+      </div>
     </label>
   );
 }
@@ -1119,9 +1191,34 @@ function App() {
   });
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [authSession, setAuthSession] = useState(null);
-  const [authForm, setAuthForm] = useState({ email: "", password: "" });
+  const [authForm, setAuthForm] = useState({ businessId: "", email: "", password: "" });
   const [authLoading, setAuthLoading] = useState(true);
+  const [bootSplashMode, setBootSplashMode] = useState("loading");
+  const [bootWelcomeName, setBootWelcomeName] = useState("");
   const [authSubmitting, setAuthSubmitting] = useState(false);
+  const [teamMembers, setTeamMembers] = useState([]);
+  const [roleOptions, setRoleOptions] = useState([]);
+  const [availablePermissions, setAvailablePermissions] = useState([]);
+  const [assignments, setAssignments] = useState([]);
+  const [workerForm, setWorkerForm] = useState({
+    fullName: "",
+    email: "",
+    password: "",
+    phone: "",
+    roleId: "",
+  });
+  const [roleForm, setRoleForm] = useState({
+    name: "",
+    description: "",
+    permissions: [],
+  });
+  const [assignmentForm, setAssignmentForm] = useState({
+    workerId: "",
+    type: "DELIVERY",
+    title: "",
+    description: "",
+  });
+  const [createdWorkerCreds, setCreatedWorkerCreds] = useState(null);
   const [pageLoading, setPageLoading] = useState(false);
   const [fileUploading, setFileUploading] = useState(false);
   const [appData, setAppData] = useState(emptyAppData);
@@ -1270,22 +1367,45 @@ function App() {
     [appData.fleet, modal.vehicleId],
   );
 
-  const translatedNavigation = useMemo(
-    () => navigation.map((item) => ({ ...item, label: t.nav[item.id] ?? item.label })),
-    [t],
+  const isOwner = (authSession?.user?.role ?? "").toUpperCase() === "OWNER";
+  const userPermissions = useMemo(
+    () => new Set(authSession?.user?.permissions ?? []),
+    [authSession?.user?.permissions],
   );
+  const canViewAssignments =
+    isOwner || userPermissions.has("assignments:view") || userPermissions.has("assignments:manage");
+  const canManageAssignments = isOwner || userPermissions.has("assignments:manage");
 
-  const mobileNavItems = useMemo(
-    () => [
-      { id: "dashboard", label: t.mobile.dashboard },
-      { id: "fleet", label: t.mobile.fleet },
-      { id: "maintenance", label: t.mobile.maintenance },
-      { id: "deliveries", label: t.mobile.deliveries },
-      { id: "billing", label: t.mobile.billing },
-      { id: "settings", label: t.mobile.settings },
-    ],
-    [t],
-  );
+  const translatedNavigation = useMemo(() => {
+    return navigation
+      .map((item) => ({ ...item, label: t.nav[item.id] ?? item.label }))
+      .filter((item) => {
+        if (item.id === "my-work") return !isOwner && canViewAssignments;
+        if (item.id === "assign-work") return canManageAssignments;
+        if (isOwner) return true;
+        return ["dashboard", "settings"].includes(item.id);
+      });
+  }, [t, isOwner, canViewAssignments, canManageAssignments]);
+
+  const mobileNavItems = useMemo(() => {
+    const preferred = [
+      "dashboard",
+      "my-work",
+      "assign-work",
+      "fleet",
+      "maintenance",
+      "deliveries",
+      "billing",
+      "settings",
+    ];
+    return translatedNavigation
+      .filter((item) => preferred.includes(item.id))
+      .slice(0, 6)
+      .map((item) => ({
+        id: item.id,
+        label: t.mobile[item.id] ?? item.label,
+      }));
+  }, [translatedNavigation, t]);
 
   const activityFeed = appData.activityFeed ?? [];
 
@@ -1576,18 +1696,31 @@ function App() {
     );
   }, [appData.payments, pageSearch.reports]);
 
-  const searchedTeamMembers = useMemo(
-    () =>
-      authSession?.user
+  const searchedTeamMembers = useMemo(() => {
+    const query = pageSearch.settings.trim().toLowerCase();
+    const members = teamMembers.length
+      ? teamMembers.map((member) => ({
+          id: member.id,
+          name: member.fullName,
+          role: member.roleName ?? member.role,
+          email: member.email,
+        }))
+      : authSession?.user
         ? [
             {
+              id: authSession.user.id,
               name: authSession.user.fullName,
-              role: authSession.user.role ?? "Owner",
+              role: authSession.user.roleName ?? authSession.user.role ?? "Owner",
+              email: authSession.user.email,
             },
           ]
-        : [],
-    [authSession],
-  );
+        : [];
+
+    if (!query) return members;
+    return members.filter((member) =>
+      [member.name, member.role, member.email].join(" ").toLowerCase().includes(query),
+    );
+  }, [teamMembers, authSession, pageSearch.settings]);
 
   const openModal = (type) => {
     if (type === "fleet") {
@@ -1720,6 +1853,149 @@ function App() {
     showToast.timeoutId = window.setTimeout(() => setToast(null), 3200);
   };
 
+  const uploadsBaseUrl = useMemo(() => {
+    const configured = import.meta.env.VITE_API_URL?.trim();
+    const apiUrl = configured || "http://127.0.0.1:5001/api";
+    return apiUrl.replace(/\/api\/?$/, "");
+  }, []);
+
+  const loadTeamData = async () => {
+    if (!isOwner) return;
+    try {
+      const [usersPayload, rolesPayload] = await Promise.all([teamApi.list(), rolesApi.list()]);
+      const users = usersPayload.users ?? usersPayload ?? [];
+      const roles = rolesPayload.roles ?? [];
+      setTeamMembers(Array.isArray(users) ? users : []);
+      setRoleOptions(roles.filter((role) => role.name !== "Mechanic"));
+      setAvailablePermissions(rolesPayload.availablePermissions ?? []);
+      setWorkerForm((current) =>
+        current.roleId || !roles[0] ? current : { ...current, roleId: roles[0].id },
+      );
+    } catch (error) {
+      showToast(getApiErrorMessage(error, "Unable to load team data."), "error");
+    }
+  };
+
+  const loadAssignments = async () => {
+    if (!canViewAssignments && !canManageAssignments) return;
+    try {
+      const payload = await assignmentsApi.list();
+      setAssignments(payload.assignments ?? payload ?? []);
+    } catch (error) {
+      showToast(getApiErrorMessage(error, "Unable to load assignments."), "error");
+    }
+  };
+
+  const handleCreateWorker = async (event) => {
+    event.preventDefault();
+    if (!isOwner) return;
+
+    try {
+      const payload = await teamApi.createWorker(workerForm);
+      const worker = payload.user ?? payload;
+      setCreatedWorkerCreds({
+        businessId: authSession?.business?.businessId,
+        email: worker.email,
+        password: worker.temporaryPassword ?? workerForm.password,
+        fullName: worker.fullName,
+        roleName: worker.roleName,
+      });
+      setWorkerForm({
+        fullName: "",
+        email: "",
+        password: "",
+        phone: "",
+        roleId: workerForm.roleId,
+      });
+      await loadTeamData();
+      showToast(language === "sw" ? "Mfanyakazi ameongezwa." : "Worker account created.");
+    } catch (error) {
+      showToast(getApiErrorMessage(error, "Unable to create worker."), "error");
+    }
+  };
+
+  const handleCreateRole = async (event) => {
+    event.preventDefault();
+    if (!isOwner) return;
+
+    try {
+      await rolesApi.create({
+        name: roleForm.name,
+        description: roleForm.description,
+        permissions: roleForm.permissions,
+      });
+      setRoleForm({ name: "", description: "", permissions: [] });
+      await loadTeamData();
+      showToast(language === "sw" ? "Jukumu limetengenezwa." : "Role created.");
+    } catch (error) {
+      showToast(getApiErrorMessage(error, "Unable to create role."), "error");
+    }
+  };
+
+  const handleCreateAssignment = async (event) => {
+    event.preventDefault();
+    if (!canManageAssignments) return;
+
+    try {
+      await assignmentsApi.create(assignmentForm);
+      setAssignmentForm({
+        workerId: "",
+        type: "DELIVERY",
+        title: "",
+        description: "",
+      });
+      await loadAssignments();
+      showToast(language === "sw" ? "Kazi imegawiwa." : "Assignment created.");
+    } catch (error) {
+      showToast(getApiErrorMessage(error, "Unable to create assignment."), "error");
+    }
+  };
+
+  const handleAssignmentStatus = async (assignmentId, status) => {
+    try {
+      await assignmentsApi.updateStatus(assignmentId, status);
+      await loadAssignments();
+      showToast(language === "sw" ? "Hali imesasishwa." : "Assignment updated.");
+    } catch (error) {
+      showToast(getApiErrorMessage(error, "Unable to update assignment."), "error");
+    }
+  };
+
+  const handleProofUpload = async (assignmentId, file) => {
+    if (!file) return;
+
+    try {
+      const base64Data = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result ?? ""));
+        reader.onerror = () => reject(new Error("Unable to read file."));
+        reader.readAsDataURL(file);
+      });
+
+      await assignmentsApi.uploadProof(assignmentId, {
+        fileName: file.name,
+        mimeType: file.type || "application/octet-stream",
+        base64Data,
+      });
+      await loadAssignments();
+      showToast(language === "sw" ? "Uthibitisho umepakiwa." : "Proof uploaded.");
+    } catch (error) {
+      showToast(getApiErrorMessage(error, "Unable to upload proof."), "error");
+    }
+  };
+
+  const toggleRolePermission = (key) => {
+    setRoleForm((current) => {
+      const exists = current.permissions.includes(key);
+      return {
+        ...current,
+        permissions: exists
+          ? current.permissions.filter((item) => item !== key)
+          : [...current.permissions, key],
+      };
+    });
+  };
+
   const buildActivityFeed = (notifications) =>
     notifications.slice(0, 8).map((notification) => ({
       ...notification,
@@ -1734,80 +2010,19 @@ function App() {
     }));
 
   const loadAppData = async ({ silent = false } = {}) => {
-    if (!authSession?.accessToken) {
+    if (!authSession?.user) {
       return;
     }
 
+    // Auth-only backend: feature modules are not available yet.
     if (!silent) {
       setPageLoading(true);
     }
 
-    try {
-      const [
-        dashboardSummary,
-        fleetResponse,
-        shipmentsResponse,
-        deliveriesResponse,
-        customersResponse,
-        suppliersResponse,
-        maintenanceResponse,
-        maintenanceAnalyticsResponse,
-        maintenanceUpcomingResponse,
-        maintenanceMileageResponse,
-        billingSummary,
-        billingResponse,
-        notificationsResponse,
-        reportsResponse,
-      ] = await Promise.all([
-        dashboardApi.summary(),
-        fleetApi.list(),
-        shipmentsApi.list(),
-        deliveriesApi.list(),
-        customersApi.list(),
-        suppliersApi.list(),
-        maintenanceApi.list(),
-        maintenanceApi.analytics(),
-        maintenanceApi.upcoming(),
-        maintenanceApi.mileageReminders(),
-        billingApi.summary(),
-        billingApi.list(),
-        notificationsApi.list(),
-        reportsApi.list(),
-      ]);
+    setAppData(emptyAppData);
 
-      const fleet = fleetResponse.items.map(mapFleetRecord);
-      const shipments = shipmentsResponse.items.map(mapShipmentRecord);
-      const deliveries = deliveriesResponse.items.map(mapDeliveryRecord);
-      const customers = customersResponse.items.map(mapCustomerRecord);
-      const suppliers = suppliersResponse.items.map(mapSupplierRecord);
-      const maintenanceRecords = maintenanceResponse.items.map(mapMaintenanceRecord);
-      const payments = billingResponse.items.map(mapInvoiceToPaymentCard);
-      const notifications = notificationsResponse.items.map(mapNotificationRecord);
-
-      setAppData({
-        ...emptyAppData,
-        fleet,
-        shipments,
-        deliveries,
-        customers,
-        suppliers,
-        maintenanceRecords,
-        payments,
-        reports: reportsResponse.items ?? [],
-        notifications,
-        dashboardSummary,
-        billingSummary,
-        maintenanceAnalytics: maintenanceAnalyticsResponse,
-        maintenanceUpcoming: maintenanceUpcomingResponse,
-        maintenanceMileageReminders: maintenanceMileageResponse,
-        activityFeed: buildActivityFeed(notifications),
-      });
-    } catch (error) {
-      showToast(getApiErrorMessage(error, "Failed to load workspace data."), "error");
-    } finally {
-      if (!silent) {
-        setPageLoading(false);
-      }
+    if (!silent) {
+      setPageLoading(false);
     }
   };
 
@@ -1828,6 +2043,8 @@ function App() {
 
     const bootstrap = async () => {
       setAuthLoading(true);
+      setBootSplashMode("loading");
+
       try {
         const session = await authApi.bootstrap();
 
@@ -1837,6 +2054,9 @@ function App() {
           persistSession(session);
           setAuthSession(session);
           setCurrentPage("dashboard");
+          setBootWelcomeName(session.user?.fullName ?? "");
+          setBootSplashMode("welcome");
+          await new Promise((resolve) => window.setTimeout(resolve, 1800));
         } else {
           setCurrentPage("login");
         }
@@ -1860,12 +2080,29 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (!authSession?.accessToken) {
+    if (!authSession?.user) {
       return;
     }
 
     void loadAppData();
-  }, [authSession?.accessToken]);
+  }, [authSession?.user]);
+
+  useEffect(() => {
+    if (!authSession?.user) return;
+
+    if (currentPage === "settings" && isOwner) {
+      void loadTeamData();
+    }
+
+    if (currentPage === "assign-work" && canManageAssignments) {
+      void loadTeamData();
+      void loadAssignments();
+    }
+
+    if (currentPage === "my-work" && canViewAssignments) {
+      void loadAssignments();
+    }
+  }, [authSession?.user, currentPage, isOwner, canManageAssignments, canViewAssignments]);
 
   const updateForm = (event) => {
     const { name, value } = event.target;
@@ -2212,6 +2449,16 @@ function App() {
     setAuthForm((current) => ({ ...current, [name]: value }));
   };
 
+  const playWelcomeSplash = async (fullName) => {
+    setAuthLoading(true);
+    setBootSplashMode("loading");
+    await new Promise((resolve) => window.setTimeout(resolve, 700));
+    setBootWelcomeName(fullName ?? "");
+    setBootSplashMode("welcome");
+    await new Promise((resolve) => window.setTimeout(resolve, 1600));
+    setAuthLoading(false);
+  };
+
   const handleLogin = async (event) => {
     event.preventDefault();
     setAuthSubmitting(true);
@@ -2219,19 +2466,23 @@ function App() {
     try {
       const payload = await authApi.login(authForm);
       const session = {
-        user: payload.user,
+        user: {
+          ...payload.user,
+          role: payload.user?.role ?? "OWNER",
+          roleName: payload.user?.roleName ?? payload.user?.role ?? "Owner",
+          permissions: payload.user?.permissions ?? [],
+        },
         business: payload.business,
-        accessToken: payload.tokens.accessToken,
-        expiresIn: payload.tokens.expiresIn,
       };
 
       setAuthSession(session);
       setCurrentPage("dashboard");
-      setAuthForm({ email: "", password: "" });
+      setAuthForm({ businessId: "", email: "", password: "" });
+      setAuthSubmitting(false);
+      await playWelcomeSplash(payload.user?.fullName);
       showToast(t.toast.signedIn);
     } catch (error) {
       showToast(getApiErrorMessage(error, "Unable to sign in."), "error");
-    } finally {
       setAuthSubmitting(false);
     }
   };
@@ -2242,20 +2493,24 @@ function App() {
     try {
       const payload = await authApi.register(values);
       const session = {
-        user: payload.user,
+        user: {
+          ...payload.user,
+          role: payload.user?.role ?? "OWNER",
+          roleName: payload.user?.roleName ?? payload.user?.role ?? "Owner",
+          permissions: payload.user?.permissions ?? [],
+        },
         business: payload.business,
-        accessToken: payload.tokens.accessToken,
-        expiresIn: payload.tokens.expiresIn,
       };
 
       setAuthSession(session);
       setCurrentPage("dashboard");
-      showToast(t.toast.workspaceCreated);
+      setAuthSubmitting(false);
+      await playWelcomeSplash(payload.user?.fullName);
+      showToast(`${t.toast.businessIdCreated} ${payload.business.businessId}. ${t.toast.workspaceCreated}`);
     } catch (error) {
       showToast(getApiErrorMessage(error, "Unable to create workspace."), "error");
-      throw error;
-    } finally {
       setAuthSubmitting(false);
+      throw error;
     }
   };
 
@@ -2268,6 +2523,10 @@ function App() {
       clearPersistedSession();
       setAuthSession(null);
       setAppData(emptyAppData);
+      setTeamMembers([]);
+      setRoleOptions([]);
+      setAssignments([]);
+      setCreatedWorkerCreds(null);
       setCurrentPage("login");
     }
   };
@@ -2360,21 +2619,6 @@ function App() {
     }));
   };
 
-  const exportMaintenanceCsv = async () => {
-    if (!canExportMaintenance) return;
-    try {
-      const file = await reportsApi.exportReport({
-        name: "maintenance-report",
-        module: "maintenance",
-        format: "csv",
-        filters: maintenanceFilters,
-      });
-      downloadFileBlob(file.fileName, file.blob);
-    } catch (error) {
-      showToast(getApiErrorMessage(error, "Unable to export CSV report."), "error");
-    }
-  };
-
   const exportMaintenanceExcel = async () => {
     if (!canExportMaintenance) return;
     try {
@@ -2435,6 +2679,17 @@ function App() {
             <strong>LOGISTICS FLOW</strong>
           </div>
         </div>
+        <label>
+          {t.auth.businessId}
+          <input
+            type="text"
+            name="businessId"
+            value={authForm.businessId}
+            onChange={handleAuthInputChange}
+            placeholder="LOG-0001"
+            autoComplete="organization"
+          />
+        </label>
         <label>
           {t.auth.email}
           <input
@@ -2964,10 +3219,6 @@ function App() {
             <FileSpreadsheet size={16} />
             {t.common.exportExcel}
           </button>
-          <button type="button" className="button secondary" onClick={exportMaintenanceCsv} disabled={!canExportMaintenance}>
-            <Download size={16} />
-            {t.common.exportCsv}
-          </button>
           <button type="button" className="button primary" onClick={() => openModal("maintenance")} disabled={!canCreateMaintenance}>
             <Plus size={16} />
             {t.maintenance.addMaintenance}
@@ -2982,26 +3233,44 @@ function App() {
         <StatCard label={t.maintenance.monthlyCost} value={formatMoney(maintenanceSummary.monthlyMaintenanceCost, language)} change={maintenanceSummary.monthlyMaintenanceCostChange} icon={CircleDollarSign} tone="green" />
       </section>
 
-      <section className="stats-grid compact">
+      <section className="maintenance-summary-grid">
         <StatCard label={t.maintenance.openRepairs} value={maintenanceSummary.openRepairs} change={maintenanceSummary.openRepairsChange} icon={Hammer} tone="amber" />
         <div className="glass-card summary-highlight">
-          <div className="section-row">
-            <div className="settings-title">
+          <div className="settings-title">
+            <div className="inline-icon brand">
               <ShieldCheck size={18} />
-              <h3>{t.common.permissions}</h3>
             </div>
+            <h3>{t.common.permissions}</h3>
           </div>
-          <p className="helper-text">{t.maintenance.permissionNotice}</p>
+          <div className="permission-chip-row">
+            {[
+              { key: "view", label: t.maintenance.permissionView, allowed: canViewMaintenance },
+              { key: "create", label: t.maintenance.permissionCreate, allowed: canCreateMaintenance },
+              { key: "edit", label: t.maintenance.permissionEdit, allowed: canEditMaintenance },
+              { key: "delete", label: t.maintenance.permissionDelete, allowed: canDeleteMaintenance },
+              { key: "approve", label: t.maintenance.permissionApprove, allowed: canApproveMaintenance },
+              { key: "export", label: t.maintenance.permissionExport, allowed: canExportMaintenance },
+            ].map((permission) => (
+              <span
+                key={permission.key}
+                className={`permission-chip ${permission.allowed ? "is-allowed" : "is-blocked"}`}
+              >
+                {permission.label}
+              </span>
+            ))}
+          </div>
         </div>
         <div className="glass-card summary-highlight">
-          <div className="section-row">
-            <div className="settings-title">
+          <div className="settings-title">
+            <div className={`inline-icon ${maintenanceAlerts.length ? "amber" : "brand"}`}>
               <BadgeAlert size={18} />
-              <h3>{t.maintenance.alertsTitle}</h3>
             </div>
+            <h3>{t.maintenance.alertsTitle}</h3>
           </div>
-          <strong>{maintenanceAlerts.length}</strong>
-          <span>{t.maintenance.noAlerts}</span>
+          <strong className="summary-highlight-value">{maintenanceAlerts.length}</strong>
+          <span className="summary-highlight-note">
+            {maintenanceAlerts.length ? `${maintenanceAlerts.length} ${t.maintenance.alertsTitle.toLowerCase()}` : t.maintenance.noAlerts}
+          </span>
         </div>
       </section>
 
@@ -3383,83 +3652,441 @@ function App() {
 
   const renderSettings = () => (
     <div className="page-stack">
-      <section className="page-header">
-        <div>
-          <h1>{t.pages.settings}</h1>
-          <p>{t.settings.intro}</p>
-        </div>
-        <SearchBox
-          label={t.common.search}
-          value={pageSearch.settings}
-          onChange={(value) => setPageSearch((current) => ({ ...current, settings: value }))}
-        />
-      </section>
+        <section className="page-header">
+          <div>
+            <h1>{t.pages.settings}</h1>
+            <p>{t.settings.intro}</p>
+          </div>
+          <SearchBox
+            label={t.common.search}
+            value={pageSearch.settings}
+            onChange={(value) => setPageSearch((current) => ({ ...current, settings: value }))}
+          />
+        </section>
 
-      <section className="feature-grid">
-        <div className="glass-card settings-card">
-          <div className="section-row">
-            <div className="settings-title">
-              <Building2 size={18} />
-              <h3>{t.settings.companyProfile}</h3>
+        <section className="feature-grid">
+          <div className="glass-card settings-card">
+            <div className="section-row">
+              <div className="settings-title">
+                <Building2 size={18} />
+                <h3>{t.settings.companyProfile}</h3>
+              </div>
             </div>
+            <div className="form-grid">
+              <label>
+                {t.auth.companyName}
+                <input type="text" readOnly value={authSession?.business?.name ?? authSession?.business?.companyName ?? ""} />
+              </label>
+              <label>
+                {language === "sw" ? "Kitambulisho cha biashara" : "Business ID"}
+                <input type="text" readOnly value={authSession?.business?.businessId ?? ""} />
+              </label>
+              <label>
+                {t.settings.supportEmail}
+                <input type="email" readOnly value={authSession?.user?.email ?? ""} />
+              </label>
+              <label>
+                {language === "sw" ? "Jukumu lako" : "Your role"}
+                <input
+                  type="text"
+                  readOnly
+                  value={authSession?.user?.roleName ?? authSession?.user?.role ?? t.settings.administrator}
+                />
+              </label>
+            </div>
+            <p className="muted-copy">{t.settings.loginHint}</p>
+            <button type="button" className="button secondary" onClick={handleLogout}>
+              <X size={16} />
+              {language === "sw" ? "Toka" : "Sign Out"}
+            </button>
           </div>
-          <div className="form-grid">
-            <label>
-              {t.auth.companyName}
-              <input type="text" defaultValue={authSession?.business?.name ?? ""} />
-            </label>
-            <label>
-              {t.settings.supportEmail}
-              <input type="email" defaultValue={authSession?.user?.email ?? ""} placeholder="support@company.com" />
-            </label>
-            <label>
-              {t.settings.phone}
-              <input type="text" placeholder="+255 7XX XXX XXX" />
-            </label>
-            <label>
-              {t.settings.workspaceType}
-              <input type="text" placeholder={t.settings.enterprise} />
-            </label>
-          </div>
-          <button type="button" className="button primary">
-            <Settings size={16} />
-            {t.common.saveChanges}
-          </button>
-          <button type="button" className="button secondary" onClick={handleLogout}>
-            <X size={16} />
-            {language === "sw" ? "Toka" : "Sign Out"}
-          </button>
-        </div>
 
-        <div className="glass-card settings-card">
-          <div className="section-row">
-            <div className="settings-title">
-              <Users size={18} />
-              <h3>{t.settings.teamRoles}</h3>
+          <div className="glass-card settings-card">
+            <div className="section-row">
+              <div className="settings-title">
+                <Users size={18} />
+                <h3>{t.settings.workers}</h3>
+              </div>
             </div>
-          </div>
-          <div className="list-stack tight">
-            {searchedTeamMembers.length ? (
-              searchedTeamMembers.map((member) => (
-                <div key={member.name} className="team-item">
-                  <div className="card-head">
-                    <div className="avatar">{initials(member.name)}</div>
-                    <div>
-                      <strong>{member.name}</strong>
-                      <span>{member.role}</span>
+            <div className="list-stack tight">
+              {searchedTeamMembers.length ? (
+                searchedTeamMembers.map((member) => (
+                  <div key={member.id ?? member.email ?? member.name} className="team-item">
+                    <div className="card-head">
+                      <div className="avatar">{initials(member.name)}</div>
+                      <div>
+                        <strong>{member.name}</strong>
+                        <span>
+                          {member.role}
+                          {member.email ? ` · ${member.email}` : ""}
+                        </span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))
-            ) : (
-              <EmptyState icon={Users} title={t.common.noTeamTitle} text={t.common.noTeamText} />
-            )}
+                ))
+              ) : (
+                <EmptyState icon={Users} title={t.common.noTeamTitle} text={t.common.noTeamText} />
+              )}
+            </div>
           </div>
-          <button type="button" className="button secondary">
-            <UserPlus size={16} />
-            {t.settings.inviteUser}
-          </button>
+        </section>
+
+        {isOwner ? (
+          <>
+            {createdWorkerCreds ? (
+              <section className="glass-card settings-card">
+                <div className="settings-title">
+                  <ShieldCheck size={18} />
+                  <h3>{language === "sw" ? "Maelezo ya kuingia" : "Worker login details"}</h3>
+                </div>
+                <p className="muted-copy">
+                  {createdWorkerCreds.fullName} ({createdWorkerCreds.roleName})
+                </p>
+                <div className="form-grid">
+                  <label>
+                    Business ID
+                    <input type="text" readOnly value={createdWorkerCreds.businessId ?? ""} />
+                  </label>
+                  <label>
+                    Email
+                    <input type="text" readOnly value={createdWorkerCreds.email ?? ""} />
+                  </label>
+                  <label>
+                    Password
+                    <input type="text" readOnly value={createdWorkerCreds.password ?? ""} />
+                  </label>
+                </div>
+              </section>
+            ) : null}
+
+            <section className="feature-grid">
+              <form className="glass-card settings-card" onSubmit={handleCreateWorker}>
+                <div className="settings-title">
+                  <UserPlus size={18} />
+                  <h3>{t.settings.inviteUser}</h3>
+                </div>
+                <div className="form-grid">
+                  <label>
+                    {t.settings.workerName}
+                    <input
+                      required
+                      value={workerForm.fullName}
+                      onChange={(event) => setWorkerForm((current) => ({ ...current, fullName: event.target.value }))}
+                    />
+                  </label>
+                  <label>
+                    {t.settings.workerEmail}
+                    <input
+                      required
+                      type="email"
+                      value={workerForm.email}
+                      onChange={(event) => setWorkerForm((current) => ({ ...current, email: event.target.value }))}
+                    />
+                  </label>
+                  <label>
+                    {t.settings.workerPassword}
+                    <input
+                      required
+                      type="text"
+                      minLength={8}
+                      value={workerForm.password}
+                      onChange={(event) => setWorkerForm((current) => ({ ...current, password: event.target.value }))}
+                    />
+                  </label>
+                  <label>
+                    {t.settings.workerPhone}
+                    <input
+                      value={workerForm.phone}
+                      onChange={(event) => setWorkerForm((current) => ({ ...current, phone: event.target.value }))}
+                    />
+                  </label>
+                  <label>
+                    {t.settings.selectRole}
+                    <select
+                      required
+                      value={workerForm.roleId}
+                      onChange={(event) => setWorkerForm((current) => ({ ...current, roleId: event.target.value }))}
+                    >
+                      <option value="">{language === "sw" ? "Teua..." : "Select..."}</option>
+                      {roleOptions.map((role) => (
+                        <option key={role.id} value={role.id}>
+                          {role.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+                <button type="submit" className="button primary">
+                  <UserPlus size={16} />
+                  {t.settings.inviteUser}
+                </button>
+              </form>
+
+              <form className="glass-card settings-card" onSubmit={handleCreateRole}>
+                <div className="settings-title">
+                  <Settings size={18} />
+                  <h3>{t.settings.createRole}</h3>
+                </div>
+                <div className="form-grid">
+                  <label>
+                    {t.settings.roleName}
+                    <input
+                      required
+                      value={roleForm.name}
+                      onChange={(event) => setRoleForm((current) => ({ ...current, name: event.target.value }))}
+                    />
+                  </label>
+                  <label>
+                    {t.settings.roleDescription}
+                    <input
+                      value={roleForm.description}
+                      onChange={(event) => setRoleForm((current) => ({ ...current, description: event.target.value }))}
+                    />
+                  </label>
+                </div>
+                <div className="permission-chip-row">
+                  {(availablePermissions.length
+                    ? availablePermissions
+                    : [
+                        { key: "deliveries:view", label: "View deliveries" },
+                        { key: "deliveries:complete", label: "Complete deliveries" },
+                        { key: "deliveries:upload", label: "Upload delivery proof" },
+                        { key: "maintenance:view", label: "View maintenance" },
+                        { key: "maintenance:upload", label: "Upload maintenance proof" },
+                        { key: "assignments:view", label: "View assignments" },
+                      ]
+                  ).map((permission) => {
+                    const key = permission.key ?? permission;
+                    const label = permission.label ?? permission;
+                    const active = roleForm.permissions.includes(key);
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        className={`permission-chip ${active ? "is-allowed" : "is-blocked"}`}
+                        onClick={() => toggleRolePermission(key)}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <button type="submit" className="button secondary">
+                  <Plus size={16} />
+                  {t.settings.createRole}
+                </button>
+                <div className="list-stack tight" style={{ marginTop: "1rem" }}>
+                  {roleOptions.map((role) => (
+                    <div key={role.id} className="team-item">
+                      <div className="card-head">
+                        <div>
+                          <strong>{role.name}</strong>
+                          <span>{role.description || (role.isSystem ? "System role" : "Custom role")}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </form>
+            </section>
+          </>
+        ) : null}
+      </div>
+  );
+
+  const renderAssignWork = () => {
+    const workersOnly = teamMembers.filter((member) => (member.role ?? "").toUpperCase() !== "OWNER");
+
+    return (
+      <div className="page-stack">
+        <section className="page-header">
+          <div>
+            <h1>{t.pages["assign-work"]}</h1>
+            <p>
+              {language === "sw"
+                ? "Gawa uwasilishaji au matengenezo kwa wafanyakazi."
+                : "Assign deliveries or maintenance tasks to your workers."}
+            </p>
+          </div>
+        </section>
+
+        <section className="glass-card settings-card">
+          <div className="settings-title">
+            <UserPlus size={18} />
+            <h3>{t.settings.assignWork}</h3>
+          </div>
+          <form className="form-grid" onSubmit={handleCreateAssignment}>
+            <label>
+              {t.settings.assignWorker}
+              <select
+                required
+                value={assignmentForm.workerId}
+                onChange={(event) =>
+                  setAssignmentForm((current) => ({ ...current, workerId: event.target.value }))
+                }
+              >
+                <option value="">{language === "sw" ? "Teua..." : "Select..."}</option>
+                {workersOnly.map((worker) => (
+                  <option key={worker.id} value={worker.id}>
+                    {worker.fullName} ({worker.roleName ?? worker.role})
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              {t.settings.assignmentType}
+              <select
+                value={assignmentForm.type}
+                onChange={(event) => setAssignmentForm((current) => ({ ...current, type: event.target.value }))}
+              >
+                <option value="DELIVERY">{t.settings.deliveryType}</option>
+                <option value="MAINTENANCE">{t.settings.maintenanceType}</option>
+              </select>
+            </label>
+            <label>
+              {t.settings.assignmentTitle}
+              <input
+                required
+                value={assignmentForm.title}
+                onChange={(event) => setAssignmentForm((current) => ({ ...current, title: event.target.value }))}
+              />
+            </label>
+            <label>
+              {t.settings.assignmentDescription}
+              <input
+                value={assignmentForm.description}
+                onChange={(event) =>
+                  setAssignmentForm((current) => ({ ...current, description: event.target.value }))
+                }
+              />
+            </label>
+            <button type="submit" className="button primary">
+              <Plus size={16} />
+              {t.settings.createAssignment}
+            </button>
+          </form>
+        </section>
+
+        <section className="list-stack">
+          {assignments.length ? (
+            assignments.map((assignment) => (
+              <article key={assignment.id} className="glass-card settings-card">
+                <div className="card-head">
+                  <div>
+                    <strong>
+                      {assignment.title} · {assignment.type}
+                    </strong>
+                    <span>
+                      {assignment.worker?.fullName ?? "Worker"} · {assignment.status}
+                    </span>
+                  </div>
+                </div>
+              </article>
+            ))
+          ) : (
+            <EmptyState
+              icon={ClipboardList}
+              title={language === "sw" ? "Hakuna kazi" : "No assignments yet"}
+              text={language === "sw" ? "Gawa kazi kwa madereva." : "Assign deliveries or maintenance to workers."}
+            />
+          )}
+        </section>
+      </div>
+    );
+  };
+
+  const renderMyWork = () => (
+    <div className="page-stack">
+      <section className="page-header">
+        <div>
+          <h1>{t.pages["my-work"]}</h1>
+          <p>
+            {language === "sw"
+              ? "Maliza uwasilishaji na matengenezo uliyopewa, kisha pakia picha za uthibitisho."
+              : "Complete your assigned deliveries and maintenance jobs, then upload proof photos."}
+          </p>
         </div>
+      </section>
+
+      <section className="list-stack">
+        {assignments.length ? (
+          assignments.map((assignment) => (
+            <article key={assignment.id} className="glass-card settings-card">
+              <div className="section-row">
+                <div>
+                  <h3>{assignment.title}</h3>
+                  <p className="muted-copy">
+                    {assignment.type} · {assignment.status}
+                    {assignment.description ? ` · ${assignment.description}` : ""}
+                  </p>
+                </div>
+                <div className="button-row">
+                  {assignment.status === "PENDING" ? (
+                    <button
+                      type="button"
+                      className="button secondary"
+                      onClick={() => handleAssignmentStatus(assignment.id, "IN_PROGRESS")}
+                    >
+                      {language === "sw" ? "Anza" : "Start"}
+                    </button>
+                  ) : null}
+                  {assignment.status !== "COMPLETED" ? (
+                    <button
+                      type="button"
+                      className="button primary"
+                      onClick={() => handleAssignmentStatus(assignment.id, "COMPLETED")}
+                    >
+                      <CheckCircle2 size={16} />
+                      {language === "sw" ? "Maliza" : "Complete"}
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+
+              <label className="upload-chip">
+                <Upload size={16} />
+                <span>{language === "sw" ? "Pakia uthibitisho" : "Upload proof image"}</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  hidden
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    void handleProofUpload(assignment.id, file);
+                    event.target.value = "";
+                  }}
+                />
+              </label>
+
+              {assignment.proofs?.length ? (
+                <div className="permission-chip-row" style={{ marginTop: "0.75rem" }}>
+                  {assignment.proofs.map((proof) => (
+                    <a
+                      key={proof.id}
+                      className="permission-chip is-allowed"
+                      href={`${uploadsBaseUrl}${proof.url}`}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      <ImageIcon size={14} />
+                      {proof.fileName}
+                    </a>
+                  ))}
+                </div>
+              ) : null}
+            </article>
+          ))
+        ) : (
+          <EmptyState
+            icon={ClipboardList}
+            title={language === "sw" ? "Hakuna kazi iliyogawiwa" : "No work assigned"}
+            text={
+              language === "sw"
+                ? "Subiri mmiliki akupe uwasilishaji au matengenezo."
+                : "Wait for the owner to assign a delivery or maintenance task."
+            }
+          />
+        )}
       </section>
     </div>
   );
@@ -3476,6 +4103,8 @@ function App() {
     }
 
     if (currentPage === "dashboard") return renderDashboard();
+    if (currentPage === "my-work") return renderMyWork();
+    if (currentPage === "assign-work") return renderAssignWork();
     if (currentPage === "fleet") return renderFleet();
     if (currentPage === "shipments") return renderShipments();
     if (currentPage === "deliveries") return renderDeliveries();
@@ -3489,17 +4118,7 @@ function App() {
   };
 
   if (authLoading) {
-    return (
-      <div className="app-shell auth-shell">
-        <div className="auth-layout">
-          <div className="auth-content">
-            <div className="auth-card glass-elevated">
-              <strong>Loading session...</strong>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+    return <BootSplash mode={bootSplashMode} userName={bootWelcomeName} />;
   }
 
   return (

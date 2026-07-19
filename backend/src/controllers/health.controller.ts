@@ -1,23 +1,20 @@
 import type { Request, Response } from "express";
 import { prisma } from "../config/database.js";
-import { env } from "../config/env.js";
 
 export class HealthController {
-  check = async (_request: Request, response: Response) => {
-    let databaseStatus: "up" | "down" = "up";
+  root = async (_request: Request, response: Response) => {
+    response.json({
+      success: true,
+      message: "Backend running",
+    });
+  };
 
-    try {
-      await prisma.$queryRaw`SELECT 1`;
-    } catch (_error) {
-      databaseStatus = "down";
-    }
+  health = async (_request: Request, response: Response) => {
+    await prisma.$queryRaw`SELECT 1`;
 
-    response.status(databaseStatus === "up" ? 200 : 503).json({
-      status: databaseStatus === "up" ? "ok" : "degraded",
-      app: env.APP_NAME,
-      uptime: process.uptime(),
-      database: databaseStatus,
-      timestamp: new Date().toISOString(),
+    response.json({
+      success: true,
+      message: "Database connected",
     });
   };
 }

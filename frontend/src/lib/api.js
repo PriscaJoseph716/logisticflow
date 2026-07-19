@@ -8,8 +8,6 @@ function normalizeSessionPayload(payload) {
   return {
     user: payload.user,
     business: payload.business,
-    accessToken: payload.tokens.accessToken,
-    expiresIn: payload.tokens.expiresIn,
   };
 }
 
@@ -32,6 +30,7 @@ export const authApi = {
   async login(values) {
     const payload = await unwrapApi(
       api.post("/auth/login", {
+        businessId: values.businessId,
         email: values.email,
         password: values.password,
       }),
@@ -48,35 +47,71 @@ export const authApi = {
   },
 
   async getCurrentUser() {
-    return unwrapApi(api.get("/users/me"));
+    return unwrapApi(api.get("/me"));
   },
 
   async bootstrap() {
+    // Cookie-only auth: skip /me when there is no local session to avoid a 401 on first load.
     const existing = getSession();
-    if (existing?.accessToken) {
-      const user = await this.getCurrentUser();
-      return {
-        ...existing,
-        user: {
-          ...user,
-          permissions: user.permissions ?? existing.user?.permissions ?? [],
-          role: user.role?.name ?? user.role ?? existing.user?.role,
-        },
-      };
+    if (!existing?.user) {
+      return null;
     }
 
     try {
-      const payload = await unwrapApi(api.post("/auth/refresh-token", {}));
+      const payload = await this.getCurrentUser();
       const session = normalizeSessionPayload(payload);
       setSession(session);
       return {
         ...session,
-        user: payload.user,
+        user: {
+          ...payload.user,
+          role: payload.user?.roleName ?? payload.user?.role ?? "OWNER",
+          permissions: payload.user?.permissions ?? [],
+        },
       };
     } catch (_error) {
       clearSession();
       return null;
     }
+  },
+};
+
+export const teamApi = {
+  list() {
+    return unwrapApi(api.get("/users"));
+  },
+  createWorker(payload) {
+    return unwrapApi(api.post("/users", payload));
+  },
+};
+
+export const rolesApi = {
+  list() {
+    return unwrapApi(api.get("/roles"));
+  },
+  create(payload) {
+    return unwrapApi(api.post("/roles", payload));
+  },
+};
+
+export const assignmentsApi = {
+  list() {
+    return unwrapApi(api.get("/assignments"));
+  },
+  create(payload) {
+    return unwrapApi(api.post("/assignments", payload));
+  },
+  updateStatus(id, status) {
+    return unwrapApi(api.patch(`/assignments/${id}/status`, { status }));
+  },
+  uploadProof(id, payload) {
+    return unwrapApi(
+      api.post(`/assignments/${id}/proof`, {
+        fileName: payload.fileName,
+        mimeType: payload.mimeType,
+        data: payload.base64Data ?? payload.data,
+      }),
+    );
   },
 };
 

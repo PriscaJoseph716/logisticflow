@@ -1,35 +1,30 @@
-import jwt, { type SignOptions } from "jsonwebtoken";
+import jwt from "jsonwebtoken";
 import { env } from "../config/env.js";
 
-export interface AccessTokenPayload {
-  sub: string;
+export type JwtPayload = {
+  userId: string;
   businessId: string;
-  role: string;
-  permissions: string[];
+};
+
+export function signToken(payload: JwtPayload): string {
+  return jwt.sign(payload, env.JWT_SECRET, {
+    expiresIn: env.JWT_EXPIRES_IN as jwt.SignOptions["expiresIn"],
+  });
 }
 
-export interface RefreshTokenPayload {
-  sub: string;
-  businessId: string;
-  tokenId: string;
-}
+export function verifyToken(token: string): JwtPayload {
+  const decoded = jwt.verify(token, env.JWT_SECRET);
 
-export function signAccessToken(payload: AccessTokenPayload) {
-  return jwt.sign(payload, env.JWT_ACCESS_SECRET, {
-    expiresIn: env.JWT_ACCESS_EXPIRES_IN,
-  } as SignOptions);
-}
+  if (typeof decoded === "string" || !decoded || typeof decoded !== "object") {
+    throw new Error("Invalid token payload.");
+  }
 
-export function signRefreshToken(payload: RefreshTokenPayload) {
-  return jwt.sign(payload, env.JWT_REFRESH_SECRET, {
-    expiresIn: env.JWT_REFRESH_EXPIRES_IN,
-  } as SignOptions);
-}
+  const userId = (decoded as jwt.JwtPayload).userId;
+  const businessId = (decoded as jwt.JwtPayload).businessId;
 
-export function verifyAccessToken(token: string) {
-  return jwt.verify(token, env.JWT_ACCESS_SECRET) as AccessTokenPayload;
-}
+  if (typeof userId !== "string" || typeof businessId !== "string") {
+    throw new Error("Invalid token payload.");
+  }
 
-export function verifyRefreshToken(token: string) {
-  return jwt.verify(token, env.JWT_REFRESH_SECRET) as RefreshTokenPayload;
+  return { userId, businessId };
 }

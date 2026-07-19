@@ -2,3 +2,9 @@ node_modules
 dist
 .DS_Store
 .vite
+.env
+.env.local
+*.log
+frontend/node_modules 2
+backend/uploads/*
+!backend/uploads/.gitkeep

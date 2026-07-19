@@ -43,91 +43,81 @@ export default function SignUpPage({ onSubmit, onSwitchToSignIn }: SignUpPagePro
   });
 
   return (
-    <div className="relative w-full max-w-[520px]">
-      <div className="pointer-events-none absolute inset-x-10 -top-12 h-48 rounded-full bg-[radial-gradient(circle,rgba(125,90,255,0.34),rgba(125,90,255,0)_68%)] blur-3xl" />
-
-      <div className="auth-card-fade-in relative overflow-hidden rounded-[20px] border border-white/10 bg-white/[0.045] p-6 shadow-[0_24px_80px_rgba(0,0,0,0.45)] backdrop-blur-2xl sm:p-8">
-        <div className="space-y-8">
-          <div className="space-y-5 text-center">
-            <div className="mx-auto inline-flex h-16 w-16 items-center justify-center rounded-[20px] bg-gradient-to-br from-[#7C6CFF] via-[#635BFF] to-[#4F46E5] shadow-[0_18px_50px_rgba(99,91,255,0.35)]">
-              <Box size={28} className="text-white" />
-            </div>
-            <div className="space-y-2">
-              <div className="text-[1.1rem] font-semibold tracking-[0.24em] text-white">LOGISTICSFLOW</div>
-              <p className="text-sm text-slate-400">Smart Logistics SaaS</p>
-            </div>
+    <div className="signup-shell">
+      <div className="signup-card auth-card-fade-in">
+        <div className="signup-brand">
+          <div className="signup-logo" aria-hidden="true">
+            <Box size={22} strokeWidth={2.25} />
           </div>
-
-          <div className="space-y-2 text-center">
-            <h1 className="text-3xl font-semibold tracking-[-0.03em] text-white sm:text-[2rem]">Create Your Account</h1>
-            <p className="mx-auto max-w-md text-sm leading-6 text-slate-400 sm:text-[15px]">
-              Create your company workspace and start managing your logistics operations.
-            </p>
-          </div>
-
-          <form className="space-y-4" onSubmit={handleSubmit(async (values) => onSubmit(values))}>
-            <AuthInput
-              label="Full Name"
-              icon={User}
-              placeholder="John Doe"
-              autoComplete="name"
-              registration={register("fullName")}
-              error={errors.fullName?.message}
-            />
-            <AuthInput
-              label="Company Name"
-              icon={Building2}
-              placeholder="LogisticsFlow Ltd"
-              autoComplete="organization"
-              registration={register("companyName")}
-              error={errors.companyName?.message}
-            />
-            <AuthInput
-              label="Email Address"
-              icon={Mail}
-              type="email"
-              placeholder="you@company.com"
-              autoComplete="email"
-              registration={register("email")}
-              error={errors.email?.message}
-            />
-            <AuthInput
-              label="Password"
-              icon={Lock}
-              placeholder="Minimum 8 characters"
-              autoComplete="new-password"
-              registration={register("password")}
-              error={errors.password?.message}
-              isPassword
-            />
-            <AuthInput
-              label="Confirm Password"
-              icon={Lock}
-              placeholder="Re-enter password"
-              autoComplete="new-password"
-              registration={register("confirmPassword")}
-              error={errors.confirmPassword?.message}
-              isPassword
-            />
-
-            <div className="pt-2">
-              <AuthButton type="submit" loading={isSubmitting}>
-                Create Account
-              </AuthButton>
-            </div>
-          </form>
-
-          <div className="text-center text-sm text-slate-400">
-            Already have an account?{" "}
-            <button
-              type="button"
-              onClick={onSwitchToSignIn}
-              className="font-medium text-[#8a7dff] transition-colors duration-200 hover:text-[#b2abff]"
-            >
-              Sign In
-            </button>
+          <div className="signup-brand-text">
+            <strong>LogisticsFlow</strong>
+            <span>Smart Logistics SaaS</span>
           </div>
         </div>
+
+        <div className="signup-heading">
+          <h1>Create Account</h1>
+          <p>Sign up to get started</p>
+        </div>
+
+        <form className="signup-form" onSubmit={handleSubmit(async (values) => onSubmit(values))} noValidate>
+          <AuthInput
+            label="Full Name"
+            icon={User}
+            placeholder="name"
+            autoComplete="name"
+            registration={register("fullName")}
+            error={errors.fullName?.message}
+          />
+          <AuthInput
+            label="Company Name"
+            icon={Building2}
+            placeholder="Acme Logistics"
+            autoComplete="organization"
+            registration={register("companyName")}
+            error={errors.companyName?.message}
+          />
+          <AuthInput
+            label="Email Address"
+            icon={Mail}
+            type="email"
+            placeholder="you@company.com"
+            autoComplete="email"
+            registration={register("email")}
+            error={errors.email?.message}
+          />
+          <AuthInput
+            label="Password"
+            icon={Lock}
+            placeholder="Minimum 8 characters"
+            autoComplete="new-password"
+            registration={register("password")}
+            error={errors.password?.message}
+            isPassword
+          />
+          <AuthInput
+            label="Confirm Password"
+            icon={Lock}
+            placeholder="Re-enter password"
+            autoComplete="new-password"
+            registration={register("confirmPassword")}
+            error={errors.confirmPassword?.message}
+            isPassword
+          />
+
+          <div className="signup-actions">
+            <AuthButton type="submit" loading={isSubmitting}>
+              Create Account
+            </AuthButton>
+          </div>
+        </form>
+
+        <p className="signup-switch">
+          Already have an account?{" "}
+          <button type="button" onClick={onSwitchToSignIn}>
+            Sign In
+          </button>
+        </p>
       </div>
     </div>
   );

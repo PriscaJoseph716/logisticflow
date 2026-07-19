@@ -18,6 +18,8 @@ export const emptyAppData = {
 
 export const navigation = [
   { id: "dashboard", label: "Dashboard" },
+  { id: "my-work", label: "My Work" },
+  { id: "assign-work", label: "Assign Work" },
   { id: "fleet", label: "Fleet" },
   { id: "shipments", label: "Shipments" },
   { id: "deliveries", label: "Deliveries" },

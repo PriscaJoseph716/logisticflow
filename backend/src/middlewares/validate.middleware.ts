@@ -22,8 +22,15 @@ export function validate(schema: ZodTypeAny) {
     };
 
     request.body = data.body;
-    request.query = data.query;
-    request.params = data.params;
+
+    if (request.query && typeof request.query === "object" && data.query && typeof data.query === "object") {
+      Object.assign(request.query as Record<string, unknown>, data.query as Record<string, unknown>);
+    }
+
+    if (request.params && typeof request.params === "object" && data.params && typeof data.params === "object") {
+      Object.assign(request.params, data.params);
+    }
+
     next();
   };
 }

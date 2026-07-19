@@ -28,8 +28,11 @@ export const env = {
   JWT_EXPIRES_IN: optional("JWT_EXPIRES_IN", "7d"),
   COOKIE_NAME: optional("COOKIE_NAME", "lf_token"),
   // Cross-site cookies (Vercel → Render) require Secure + SameSite=None.
+  // Force Secure in production even if an old Render env still says COOKIE_SECURE=false.
   COOKIE_SECURE:
-    optional("COOKIE_SECURE", NODE_ENV === "production" ? "true" : "false") === "true",
+    NODE_ENV === "production"
+      ? true
+      : optional("COOKIE_SECURE", "false") === "true",
   FRONTEND_URL: optional("FRONTEND_URL", "http://localhost:5173"),
 };
 

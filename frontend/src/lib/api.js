@@ -48,10 +48,12 @@ export const authApi = {
   },
 
   async login(values) {
+    const identifier = (values.identifier ?? values.email ?? values.login ?? "").trim();
     const payload = await unwrapApi(
       api.post("/auth/login", {
         businessId: values.businessId,
-        email: values.email,
+        identifier,
+        email: identifier,
         password: values.password,
       }),
     );

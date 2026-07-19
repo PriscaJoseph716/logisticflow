@@ -17,7 +17,9 @@ export type RegisterInput = {
 
 export type LoginInput = {
   businessId: string;
-  email: string;
+  /** Email or full name */
+  email?: string;
+  identifier?: string;
   password: string;
 };
 
@@ -142,11 +144,11 @@ export class AuthService {
 
   async login(input: LoginInput) {
     const publicBusinessId = normalizeBusinessId(input.businessId ?? "");
-    const email = input.email.trim().toLowerCase();
+    const identifier = (input.identifier ?? input.email ?? "").trim();
     const password = input.password;
 
-    if (!publicBusinessId || !email || !password) {
-      throw new AppError("Business ID, email, and password are required.");
+    if (!publicBusinessId || !identifier || !password) {
+      throw new AppError("Business ID, name or email, and password are required.");
     }
 
     const business = await prisma.business.findUnique({
@@ -154,26 +156,34 @@ export class AuthService {
     });
 
     if (!business) {
-      throw new AppError("Invalid business ID, email, or password.", 401);
+      throw new AppError("Invalid business ID, login, or password.", 401);
     }
 
-    const user = await prisma.user.findUnique({
+    const matches = await prisma.user.findMany({
       where: {
-        businessId_email: {
-          businessId: business.id,
-          email,
-        },
+        businessId: business.id,
+        OR: [
+          { email: identifier.toLowerCase() },
+          { fullName: { equals: identifier, mode: "insensitive" } },
+        ],
       },
       include: { business: true, customRole: true },
+      take: 5,
     });
 
-    if (!user) {
-      throw new AppError("Invalid business ID, email, or password.", 401);
+    if (!matches.length) {
+      throw new AppError("Invalid business ID, login, or password.", 401);
     }
+
+    if (matches.length > 1) {
+      throw new AppError("Multiple workers share that name. Please sign in with email.", 401);
+    }
+
+    const user = matches[0]!;
 
     const valid = await verifyPassword(password, user.passwordHash);
     if (!valid) {
-      throw new AppError("Invalid business ID, email, or password.", 401);
+      throw new AppError("Invalid business ID, login, or password.", 401);
     }
 
     if (user.role === "OWNER") {

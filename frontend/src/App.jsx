@@ -167,13 +167,15 @@ const translations = {
       companyName: "Company name",
       businessId: "Business ID",
       email: "Email",
+      loginId: "Name or email",
+      loginIdPlaceholder: "Your name or email",
       password: "Password",
       createAccount: "Create account",
       alreadyHaveAccount: "Already have an account?",
       signIn: "Sign in",
       loginTag: "Real-time logistics control center",
       welcome: "Welcome back",
-      loginText: "Sign in to monitor fleet activity, shipments, deliveries, and billing.",
+      loginText: "Sign in with your Business ID, name or email, and password.",
       needAccount: "Need an account?",
       createOne: "Create one",
     },
@@ -413,7 +415,7 @@ const translations = {
       maintenanceType: "Maintenance",
       assignWorker: "Assign to worker",
       createAssignment: "Create assignment",
-      loginHint: "Workers sign in with your Business ID + their email + password.",
+      loginHint: "Workers sign in with your Business ID + their name or email + password.",
       administrator: "Administrator",
       enterprise: "Enterprise logistics SaaS",
     },
@@ -582,13 +584,15 @@ const translations = {
       companyName: "Jina la kampuni",
       businessId: "Kitambulisho cha Biashara",
       email: "Barua pepe",
+      loginId: "Jina au barua pepe",
+      loginIdPlaceholder: "Jina lako au barua pepe",
       password: "Nenosiri",
       createAccount: "Tengeneza akaunti",
       alreadyHaveAccount: "Una akaunti tayari?",
       signIn: "Ingia",
       loginTag: "Kituo cha usimamizi wa usafirishaji kwa wakati halisi",
       welcome: "Karibu tena",
-      loginText: "Ingia kufuatilia magari, mizigo, uwasilishaji na malipo.",
+      loginText: "Ingia kwa Business ID, jina au barua pepe, na nenosiri.",
       needAccount: "Unahitaji akaunti?",
       createOne: "Tengeneza moja",
     },
@@ -828,7 +832,7 @@ const translations = {
       maintenanceType: "Matengenezo",
       assignWorker: "Mpe mfanyakazi",
       createAssignment: "Tengeneza kazi",
-      loginHint: "Wafanyakazi wanaingia kwa Business ID yako + barua pepe + nenosiri.",
+      loginHint: "Wafanyakazi wanaingia kwa Business ID yako + jina au barua pepe + nenosiri.",
       administrator: "Msimamizi",
       enterprise: "Mfumo wa biashara wa usafirishaji",
     },
@@ -916,6 +920,31 @@ function statusTone(status) {
   if (status === "transit" || status === "inProgress") return "blue";
   if (status === "maintenance" || status === "cancelled") return "red";
   return "amber";
+}
+
+function resolveRoleKey(user, permissions = []) {
+  const role = String(user?.role ?? "").toUpperCase();
+  const roleName = String(user?.roleName ?? "").toLowerCase();
+  const permissionSet = new Set(permissions);
+  const canManage =
+    role === "OWNER" || permissionSet.has("assignments:manage");
+  const canView =
+    canManage || permissionSet.has("assignments:view");
+
+  if (role === "OWNER") return "OWNER";
+  if (role === "DRIVER" || roleName.includes("driver")) return "DRIVER";
+  if (role === "DISPATCHER" || roleName.includes("dispatch")) return "DISPATCHER";
+  if (canManage) return "DISPATCHER";
+  if (canView) return "DRIVER";
+  return "WORKER";
+}
+
+function resolveHomePage(user, permissions = []) {
+  const key = resolveRoleKey(user, permissions);
+  if (key === "OWNER") return "dashboard";
+  if (key === "DRIVER") return "my-work";
+  if (key === "DISPATCHER") return "assign-work";
+  return "settings";
 }
 
 function initials(name) {
@@ -1191,7 +1220,7 @@ function App() {
   });
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [authSession, setAuthSession] = useState(null);
-  const [authForm, setAuthForm] = useState({ businessId: "", email: "", password: "" });
+  const [authForm, setAuthForm] = useState({ businessId: "", login: "", password: "" });
   const [authLoading, setAuthLoading] = useState(true);
   const [bootSplashMode, setBootSplashMode] = useState("loading");
   const [bootWelcomeName, setBootWelcomeName] = useState("");
@@ -1376,16 +1405,50 @@ function App() {
     isOwner || userPermissions.has("assignments:view") || userPermissions.has("assignments:manage");
   const canManageAssignments = isOwner || userPermissions.has("assignments:manage");
 
+  const roleKey = useMemo(() => {
+    const role = String(authSession?.user?.role ?? "").toUpperCase();
+    const roleName = String(authSession?.user?.roleName ?? "").toLowerCase();
+    if (role === "OWNER") return "OWNER";
+    if (role === "DRIVER" || roleName.includes("driver")) return "DRIVER";
+    if (role === "DISPATCHER" || roleName.includes("dispatch")) return "DISPATCHER";
+    if (canManageAssignments) return "DISPATCHER";
+    if (canViewAssignments) return "DRIVER";
+    return "WORKER";
+  }, [authSession?.user?.role, authSession?.user?.roleName, canManageAssignments, canViewAssignments]);
+
+  const homePageForRole = useMemo(() => {
+    if (roleKey === "OWNER") return "dashboard";
+    if (roleKey === "DRIVER") return "my-work";
+    if (roleKey === "DISPATCHER") return "assign-work";
+    return "settings";
+  }, [roleKey]);
+
   const translatedNavigation = useMemo(() => {
     return navigation
-      .map((item) => ({ ...item, label: t.nav[item.id] ?? item.label }))
+      .map((item) => {
+        let label = t.nav[item.id] ?? item.label;
+        if (item.id === "dashboard" && roleKey === "OWNER") label = t.nav.dashboard ?? label;
+        if (item.id === "my-work" && roleKey === "DRIVER") {
+          label = language === "sw" ? "Kazi Yangu" : "Driver Work";
+        }
+        if (item.id === "assign-work" && roleKey === "DISPATCHER") {
+          label = language === "sw" ? "Gawa Kazi" : "Dispatch";
+        }
+        return { ...item, label };
+      })
       .filter((item) => {
-        if (item.id === "my-work") return !isOwner && canViewAssignments;
-        if (item.id === "assign-work") return canManageAssignments;
-        if (isOwner) return true;
-        return ["dashboard", "settings"].includes(item.id);
+        if (roleKey === "OWNER") {
+          return item.id !== "my-work";
+        }
+        if (roleKey === "DRIVER") {
+          return ["my-work", "settings"].includes(item.id);
+        }
+        if (roleKey === "DISPATCHER") {
+          return ["assign-work", "settings"].includes(item.id);
+        }
+        return ["settings"].includes(item.id);
       });
-  }, [t, isOwner, canViewAssignments, canManageAssignments]);
+  }, [t, roleKey, language]);
 
   const mobileNavItems = useMemo(() => {
     const preferred = [
@@ -2053,7 +2116,7 @@ function App() {
         if (session) {
           persistSession(session);
           setAuthSession(session);
-          setCurrentPage("dashboard");
+          setCurrentPage(resolveHomePage(session.user, session.user?.permissions));
           setBootWelcomeName(session.user?.fullName ?? "");
           setBootSplashMode("welcome");
           await new Promise((resolve) => window.setTimeout(resolve, 1800));
@@ -2103,6 +2166,14 @@ function App() {
       void loadAssignments();
     }
   }, [authSession?.user, currentPage, isOwner, canManageAssignments, canViewAssignments]);
+
+  useEffect(() => {
+    if (!authSession?.user) return;
+    const allowed = new Set(translatedNavigation.map((item) => item.id));
+    if (!allowed.has(currentPage)) {
+      setCurrentPage(homePageForRole);
+    }
+  }, [authSession?.user, currentPage, translatedNavigation, homePageForRole]);
 
   const updateForm = (event) => {
     const { name, value } = event.target;
@@ -2482,12 +2553,17 @@ function App() {
     setAuthSubmitting(true);
 
     try {
-      const payload = await authApi.login(authForm);
+      const payload = await authApi.login({
+        businessId: authForm.businessId,
+        identifier: authForm.login,
+        email: authForm.login,
+        password: authForm.password,
+      });
       const session = buildAuthSession(payload);
       persistSession(session);
       setAuthSession(session);
-      setCurrentPage("dashboard");
-      setAuthForm({ businessId: "", email: "", password: "" });
+      setCurrentPage(resolveHomePage(session.user, session.user.permissions));
+      setAuthForm({ businessId: "", login: "", password: "" });
       setAuthSubmitting(false);
       await playWelcomeSplash(payload.user?.fullName);
       showToast(t.toast.signedIn);
@@ -2505,7 +2581,7 @@ function App() {
       const session = buildAuthSession(payload);
       persistSession(session);
       setAuthSession(session);
-      setCurrentPage("dashboard");
+      setCurrentPage(resolveHomePage(session.user, session.user.permissions));
       setAuthSubmitting(false);
       await playWelcomeSplash(payload.user?.fullName);
       showToast(`${t.toast.businessIdCreated} ${session.business.businessId}. ${t.toast.workspaceCreated}`);
@@ -2693,14 +2769,14 @@ function App() {
           />
         </label>
         <label>
-          {t.auth.email}
+          {t.auth.loginId}
           <input
-            type="email"
-            name="email"
-            value={authForm.email}
+            type="text"
+            name="login"
+            value={authForm.login}
             onChange={handleAuthInputChange}
-            placeholder="admin@company.com"
-            autoComplete="email"
+            placeholder={t.auth.loginIdPlaceholder}
+            autoComplete="username"
           />
         </label>
         <label>
@@ -3910,18 +3986,30 @@ function App() {
 
   const renderAssignWork = () => {
     const workersOnly = teamMembers.filter((member) => (member.role ?? "").toUpperCase() !== "OWNER");
+    const pendingCount = assignments.filter((item) => item.status === "PENDING").length;
+    const activeCount = assignments.filter((item) => item.status === "IN_PROGRESS").length;
+    const doneCount = assignments.filter((item) => item.status === "COMPLETED").length;
 
     return (
       <div className="page-stack">
         <section className="page-header">
           <div>
-            <h1>{t.pages["assign-work"]}</h1>
+            <h1>
+              {language === "sw" ? "Dashibodi ya Dispatcher" : "Dispatcher workspace"}
+            </h1>
             <p>
               {language === "sw"
-                ? "Gawa uwasilishaji au matengenezo kwa wafanyakazi."
-                : "Assign deliveries or maintenance tasks to your workers."}
+                ? `Karibu ${authSession?.user?.fullName ?? ""}. Gawa uwasilishaji na matengenezo kwa madereva.`
+                : `Welcome ${authSession?.user?.fullName ?? ""}. Assign deliveries and maintenance to drivers.`}
             </p>
           </div>
+        </section>
+
+        <section className="stats-grid">
+          <StatCard label={language === "sw" ? "Zinasubiri" : "Pending"} value={pendingCount} icon={Clock3} tone="amber" />
+          <StatCard label={language === "sw" ? "Zinaendelea" : "In progress"} value={activeCount} icon={Route} tone="brand" />
+          <StatCard label={language === "sw" ? "Zimekamilika" : "Completed"} value={doneCount} icon={CheckCircle2} tone="green" />
+          <StatCard label={language === "sw" ? "Wafanyakazi" : "Workers"} value={workersOnly.length} icon={Users} tone="brand" />
         </section>
 
         <section className="glass-card settings-card">
@@ -4009,17 +4097,30 @@ function App() {
     );
   };
 
-  const renderMyWork = () => (
+  const renderMyWork = () => {
+    const pendingCount = assignments.filter((item) => item.status === "PENDING").length;
+    const activeCount = assignments.filter((item) => item.status === "IN_PROGRESS").length;
+    const doneCount = assignments.filter((item) => item.status === "COMPLETED").length;
+
+    return (
     <div className="page-stack">
       <section className="page-header">
         <div>
-          <h1>{t.pages["my-work"]}</h1>
+          <h1>
+            {language === "sw" ? "Dashibodi ya Dereva" : "Driver workspace"}
+          </h1>
           <p>
             {language === "sw"
-              ? "Maliza uwasilishaji na matengenezo uliyopewa, kisha pakia picha za uthibitisho."
-              : "Complete your assigned deliveries and maintenance jobs, then upload proof photos."}
+              ? `Karibu ${authSession?.user?.fullName ?? ""}. Maliza kazi ulizopewa na pakia uthibitisho.`
+              : `Welcome ${authSession?.user?.fullName ?? ""}. Complete your assigned jobs and upload proof.`}
           </p>
         </div>
+      </section>
+
+      <section className="stats-grid">
+        <StatCard label={language === "sw" ? "Mpya" : "To do"} value={pendingCount} icon={ClipboardList} tone="amber" />
+        <StatCard label={language === "sw" ? "Inaendelea" : "In progress"} value={activeCount} icon={Route} tone="brand" />
+        <StatCard label={language === "sw" ? "Imekamilika" : "Done"} value={doneCount} icon={CheckCircle2} tone="green" />
       </section>
 
       <section className="list-stack">
@@ -4104,9 +4205,13 @@ function App() {
       </section>
     </div>
   );
+  };
 
   const renderPage = () => {
-    if (pageLoading && !appData.fleet.length && !appData.shipments.length && !appData.customers.length) {
+    const allowedPages = new Set(translatedNavigation.map((item) => item.id));
+    const page = allowedPages.has(currentPage) ? currentPage : homePageForRole;
+
+    if (pageLoading && !appData.fleet.length && !appData.shipments.length && !appData.customers.length && isOwner) {
       return (
         <div className="page-stack">
           <section className="glass-card settings-card">
@@ -4116,19 +4221,19 @@ function App() {
       );
     }
 
-    if (currentPage === "dashboard") return renderDashboard();
-    if (currentPage === "my-work") return renderMyWork();
-    if (currentPage === "assign-work") return renderAssignWork();
-    if (currentPage === "fleet") return renderFleet();
-    if (currentPage === "shipments") return renderShipments();
-    if (currentPage === "deliveries") return renderDeliveries();
-    if (currentPage === "customers") return renderCustomers();
-    if (currentPage === "suppliers") return renderSuppliers();
-    if (currentPage === "maintenance") return renderMaintenance();
-    if (currentPage === "billing") return renderBilling();
-    if (currentPage === "reports") return renderReports();
-    if (currentPage === "settings") return renderSettings();
-    return renderDashboard();
+    if (page === "dashboard") return renderDashboard();
+    if (page === "my-work") return renderMyWork();
+    if (page === "assign-work") return renderAssignWork();
+    if (page === "fleet") return renderFleet();
+    if (page === "shipments") return renderShipments();
+    if (page === "deliveries") return renderDeliveries();
+    if (page === "customers") return renderCustomers();
+    if (page === "suppliers") return renderSuppliers();
+    if (page === "maintenance") return renderMaintenance();
+    if (page === "billing") return renderBilling();
+    if (page === "reports") return renderReports();
+    if (page === "settings") return renderSettings();
+    return isOwner ? renderDashboard() : roleKey === "DISPATCHER" ? renderAssignWork() : renderMyWork();
   };
 
   if (authLoading) {

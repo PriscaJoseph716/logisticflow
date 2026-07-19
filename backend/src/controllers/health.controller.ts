@@ -10,12 +10,23 @@ export class HealthController {
   };
 
   health = async (_request: Request, response: Response) => {
-    await prisma.$queryRaw`SELECT 1`;
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+      await prisma.business.findFirst({ select: { id: true } });
 
-    response.json({
-      success: true,
-      message: "Database connected",
-    });
+      response.status(200).json({
+        success: true,
+        message: "Database connected",
+        schema: "ready",
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Database unavailable";
+      response.status(503).json({
+        success: false,
+        message,
+        schema: "missing",
+      });
+    }
   };
 }
 

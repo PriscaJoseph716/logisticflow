@@ -2,6 +2,7 @@ import cookieParser from "cookie-parser";
 import express from "express";
 import path from "node:path";
 import { corsMiddleware } from "./config/cors.js";
+import { healthController } from "./controllers/health.controller.js";
 import { errorHandler } from "./middlewares/error.middleware.js";
 import { router } from "./routes/index.js";
 
@@ -15,10 +16,8 @@ export function createApp() {
   app.use(cookieParser());
   app.use("/uploads", express.static(path.resolve(process.cwd(), "uploads")));
 
-  // Render health checks hit /health at the service root.
-  app.get("/health", (_request, response) => {
-    response.status(200).json({ success: true, message: "ok" });
-  });
+  // Render health checks hit /health at the service root — must verify schema.
+  app.get("/health", healthController.health);
 
   app.use(router);
   app.use(errorHandler);

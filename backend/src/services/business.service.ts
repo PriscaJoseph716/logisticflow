@@ -4,6 +4,11 @@ import { formatBusinessId } from "../utils/business-id.js";
 
 type DbClient = Prisma.TransactionClient | typeof prisma;
 
+function sequenceFromBusinessId(businessId: string): number {
+  const match = /^LOG-(\d+)$/i.exec(businessId.trim());
+  return match ? Number(match[1]) : 0;
+}
+
 export class BusinessService {
   async findById(id: string) {
     return prisma.business.findUnique({ where: { id } });
@@ -14,13 +19,13 @@ export class BusinessService {
   }
 
   async getNextBusinessId(client: DbClient = prisma): Promise<string> {
-    const rows = await client.$queryRaw<Array<{ max: number | null }>>`
-      SELECT MAX(CAST(SUBSTRING("businessId" FROM 5) AS INTEGER)) AS max
-      FROM "Business"
-      WHERE "businessId" ~ '^LOG-[0-9]+$'
-    `;
+    const businesses = await client.business.findMany({
+      select: { businessId: true },
+    });
 
-    const nextSequence = Number(rows[0]?.max ?? 0) + 1;
+    const nextSequence =
+      businesses.reduce((max, item) => Math.max(max, sequenceFromBusinessId(item.businessId)), 0) + 1;
+
     return formatBusinessId(nextSequence);
   }
 }

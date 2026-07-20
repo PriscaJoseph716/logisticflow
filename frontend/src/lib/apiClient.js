@@ -124,7 +124,7 @@ api.interceptors.response.use(
 export function getApiErrorMessage(error, fallback = "Something went wrong.") {
   if (axios.isAxiosError(error)) {
     if (!error.response && (error.code === "ECONNABORTED" || error.message === "Network Error")) {
-      return "Unable to reach the server. If the backend is waking up, please wait a moment and try again.";
+      return "We couldn't connect right now. Please wait a moment and try again.";
     }
 
     return error.response?.data?.message ?? error.message ?? fallback;

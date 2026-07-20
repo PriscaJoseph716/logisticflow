@@ -163,9 +163,9 @@ const translations = {
       maintenance: "Maintenance",
     },
     auth: {
-      signupTag: "Launch your logistics workspace",
+      signupTag: "Start managing your logistics business",
       signupTitle: "Create account",
-      signupText: "Set up your operations hub for fleet, dispatch, billing, and reporting.",
+      signupText: "Set up fleet, deliveries, billing, and reports in one place.",
       companyName: "Company name",
       businessId: "Business ID",
       email: "Email",
@@ -175,7 +175,7 @@ const translations = {
       createAccount: "Create account",
       alreadyHaveAccount: "Already have an account?",
       signIn: "Sign in",
-      loginTag: "Real-time logistics control center",
+      loginTag: "Manage your fleet and deliveries in one place",
       welcome: "Welcome back",
       loginText: "Sign in with your Business ID, name or email, and password.",
       needAccount: "Need an account?",
@@ -395,7 +395,7 @@ const translations = {
       companyProfile: "Company Profile",
       supportEmail: "Support email",
       phone: "Phone",
-      workspaceType: "Workspace type",
+      workspaceType: "Account type",
       teamRoles: "Team & Roles",
       inviteUser: "Add Worker",
       createRole: "Create Role",
@@ -492,7 +492,7 @@ const translations = {
       confirmMaintenanceDeleteTitle: "Delete maintenance record",
       confirmMaintenanceDeleteBody: "This permanently deletes the maintenance record and its attachments.",
       signedIn: "Signed in successfully",
-      workspaceCreated: "Workspace created successfully",
+      workspaceCreated: "Your account is ready",
       businessIdCreated: "Your Business ID is",
       deliveryUpdated: "Delivery updated",
     },
@@ -2194,7 +2194,9 @@ function App() {
       if (failed.length > 0 && !silent) {
         const firstMessage = getApiErrorMessage(
           failed[0].reason,
-          "Some workspace data could not be loaded.",
+          language === "sw"
+            ? "Baadhi ya taarifa hazikuweza kupakiwa."
+            : "Some of your data could not be loaded.",
         );
         showToast(firstMessage, "error");
       }
@@ -2220,7 +2222,13 @@ function App() {
       });
     } catch (error) {
       if (!silent) {
-        showToast(getApiErrorMessage(error, "Unable to load workspace data."), "error");
+        showToast(
+          getApiErrorMessage(
+            error,
+            language === "sw" ? "Imeshindikana kupakia taarifa zako." : "Unable to load your data.",
+          ),
+          "error",
+        );
       }
     } finally {
       if (!silent) {
@@ -2236,7 +2244,13 @@ function App() {
         setAuthSession(null);
         setAppData(emptyAppData);
         setCurrentPage("login");
-        setToast({ message: "Session expired. Please sign in again.", type: "error" });
+        setToast({
+          message:
+            language === "sw"
+              ? "Kipindi kimeisha. Tafadhali ingia tena."
+              : "Your session ended. Please sign in again.",
+          type: "error",
+        });
       },
     });
   }, []);
@@ -2734,7 +2748,7 @@ function App() {
       await playWelcomeSplash(payload.user?.fullName);
       showToast(`${t.toast.businessIdCreated} ${session.business.businessId}. ${t.toast.workspaceCreated}`);
     } catch (error) {
-      showToast(getApiErrorMessage(error, "Unable to create workspace."), "error");
+      showToast(getApiErrorMessage(error, language === "sw" ? "Imeshindikana kutengeneza akaunti." : "Unable to create your account."), "error");
       setAuthSubmitting(false);
       throw error;
     }
@@ -4167,7 +4181,7 @@ function App() {
         <section className="page-header">
           <div>
             <h1>
-              {language === "sw" ? "Dashibodi ya Dispatcher" : "Dispatcher workspace"}
+              {language === "sw" ? "Dashibodi ya Dispatcher" : "Dispatcher home"}
             </h1>
             <p>
               {language === "sw"
@@ -4279,7 +4293,7 @@ function App() {
       <section className="page-header">
         <div>
           <h1>
-            {language === "sw" ? "Dashibodi ya Dereva" : "Driver workspace"}
+            {language === "sw" ? "Dashibodi ya Dereva" : "Driver home"}
           </h1>
           <p>
             {language === "sw"
@@ -4387,7 +4401,7 @@ function App() {
       return (
         <div className="page-stack">
           <section className="glass-card settings-card">
-            <h3>Loading workspace...</h3>
+            <h3>{language === "sw" ? "Inapakia..." : "Loading your dashboard..."}</h3>
           </section>
         </div>
       );

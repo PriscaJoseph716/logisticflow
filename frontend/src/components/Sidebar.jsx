@@ -8,8 +8,6 @@ import {
   LogOut,
   MapPin,
   Package,
-  PanelLeftClose,
-  PanelLeftOpen,
   Settings,
   Truck,
   UserPlus,
@@ -46,7 +44,6 @@ export default function Sidebar({
   open,
   mobileOpen,
   isMobile,
-  onToggle,
   onClose,
   userName = "",
   userRole = "Owner",
@@ -68,15 +65,6 @@ export default function Sidebar({
             <div className="brand-name">LOGISTICSFLOW</div>
             <div className="brand-tag">Smart Logistics SaaS</div>
           </div>
-          <button
-            type="button"
-            className="icon-button sidebar-toggle-inline"
-            onClick={onToggle}
-            aria-label={expanded ? "Collapse sidebar" : "Expand sidebar"}
-            title={expanded ? "Collapse sidebar" : "Expand sidebar"}
-          >
-            {expanded ? <PanelLeftClose size={16} /> : <PanelLeftOpen size={16} />}
-          </button>
         </div>
 
         <nav className="sidebar-nav">

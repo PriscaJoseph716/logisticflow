@@ -4275,7 +4275,6 @@ function App() {
             open={sidebarOpen}
             mobileOpen={mobileSidebarOpen}
             isMobile={isMobileSidebar}
-            onToggle={toggleSidebar}
             onClose={closeMobileSidebar}
             userName={authSession?.user?.fullName ?? ""}
             userRole={

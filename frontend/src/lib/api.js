@@ -75,7 +75,7 @@ export const authApi = {
 
   async bootstrap() {
     const existing = getSession();
-    if (!existing?.user || !existing?.token) {
+    if (!existing?.user) {
       return null;
     }
 
@@ -84,9 +84,17 @@ export const authApi = {
       const session = normalizeSessionPayload(payload, existing);
       setSession(session);
       return session;
-    } catch (_error) {
-      clearSession();
-      return null;
+    } catch (error) {
+      const status = error?.response?.status;
+
+      // Only hard-logout when the server rejects the credentials.
+      // Network / cold-start / 5xx should keep the saved session so refresh stays signed in.
+      if (status === 401) {
+        clearSession();
+        return null;
+      }
+
+      return existing;
     }
   },
 };

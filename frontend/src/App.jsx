@@ -44,7 +44,7 @@ import MobileNav from "./components/MobileNav";
 import BootSplash from "./components/auth/BootSplash";
 import SignUpPage from "./components/auth/SignUpPage";
 import { emptyAppData, navigation } from "./data/appConfig";
-import { configureApiClient, getApiErrorMessage, setSession as persistSession, clearSession as clearPersistedSession } from "./lib/apiClient";
+import { configureApiClient, getApiErrorMessage, getSession, setSession as persistSession, clearSession as clearPersistedSession } from "./lib/apiClient";
 import {
   assignmentsApi,
   authApi,
@@ -2122,7 +2122,7 @@ function App() {
 
         if (!active) return;
 
-        if (session) {
+        if (session?.user) {
           persistSession(session);
           setAuthSession(session);
           setCurrentPage(resolveHomePage(session.user, session.user?.permissions));
@@ -2134,9 +2134,16 @@ function App() {
         }
       } catch (_error) {
         if (!active) return;
-        clearPersistedSession();
-        setAuthSession(null);
-        setCurrentPage("login");
+        // Keep any locally saved session if bootstrap threw unexpectedly.
+        const existing = getSession();
+        if (existing?.user) {
+          setAuthSession(existing);
+          setCurrentPage(resolveHomePage(existing.user, existing.user?.permissions));
+          setBootWelcomeName(existing.user?.fullName ?? "");
+          setBootSplashMode("welcome");
+        } else {
+          setCurrentPage("login");
+        }
       } finally {
         if (active) {
           setAuthLoading(false);

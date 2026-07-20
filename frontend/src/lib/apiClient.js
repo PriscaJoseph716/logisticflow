@@ -93,7 +93,15 @@ api.interceptors.response.use(
     const originalRequest = error.config ?? {};
     const requestUrl = originalRequest.url ?? "";
 
-    if (error.response?.status === 401 && !originalRequest.__authHandled && !isAuthRoute(requestUrl)) {
+    // Don't wipe the session on /me failures during bootstrap — authApi.bootstrap decides.
+    const isMeRoute = requestUrl.includes("/me");
+
+    if (
+      error.response?.status === 401 &&
+      !originalRequest.__authHandled &&
+      !isAuthRoute(requestUrl) &&
+      !isMeRoute
+    ) {
       originalRequest.__authHandled = true;
       const hadSession = Boolean(getSession()?.user);
       clearSession();

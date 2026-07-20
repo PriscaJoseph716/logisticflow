@@ -56,6 +56,16 @@ import {
   moneyValue,
   shareBillingDocument,
 } from "./lib/billingDocuments";
+import {
+  buildReportCsv,
+  buildReportPdf,
+  buildSectorRows,
+  buildSectorSummary,
+  downloadReportFile,
+  filterSectorItems,
+  getSectorItems,
+  REPORT_SECTOR_IDS,
+} from "./lib/reportDocuments";
 import { configureApiClient, getApiErrorMessage, getSession, setSession as persistSession, clearSession as clearPersistedSession } from "./lib/apiClient";
 import {
   assignmentsApi,
@@ -442,7 +452,7 @@ const translations = {
       noReceiptYet: "No receipt yet. Record a payment first.",
     },
     reports: {
-      intro: "Analytics for collections, shipment volume, and outstanding balances.",
+      intro: "Choose a sector, filter by period, and download a modern report.",
       totalRevenue: "Total Revenue",
       orders: "Orders",
       avgOrder: "Average Order",
@@ -453,6 +463,54 @@ const translations = {
       clearedCustomers: "Cleared customers",
       outstandingByCustomer: "Outstanding by Customer",
       outstandingText: "Open balances that still need collection.",
+      sectorsTitle: "Report sectors",
+      sectorsText: "Only sectors with data in your system are shown.",
+      previewTitle: "Report preview",
+      previewText: "This is what your export will include for the selected period.",
+      period: "Period",
+      generated: "Generated",
+      reportBadge: "Report",
+      noRecords: "No records for this period.",
+      noSectors: "No sector data yet. Add records to unlock reports.",
+      downloadReady: "Report downloaded.",
+      records: "Records",
+      invoiced: "Invoiced",
+      collected: "Collected",
+      outstanding: "Outstanding",
+      delivered: "Delivered",
+      inTransit: "In transit",
+      pending: "Pending",
+      active: "Active",
+      other: "Other",
+      totalCost: "Total cost",
+      code: "Code",
+      origin: "Origin",
+      destination: "Destination",
+      vehicle: "Vehicle",
+      quantity: "Quantity",
+      date: "Date",
+      plate: "Plate",
+      trailer: "Trailer",
+      driver: "Driver",
+      phone: "Phone",
+      ownership: "Ownership",
+      id: "ID",
+      name: "Name",
+      location: "Location",
+      buyingPrice: "Buying",
+      sellingPrice: "Selling",
+      type: "Type",
+      workshop: "Workshop",
+      mechanic: "Mechanic",
+      cost: "Cost",
+      invoice: "Invoice",
+      customer: "Customer",
+      issueDate: "Issued",
+      dueDate: "Due",
+      total: "Total",
+      paid: "Paid",
+      balance: "Balance",
+      status: "Status",
     },
     settings: {
       intro: "Manage your company, roles, and worker login access.",
@@ -915,7 +973,7 @@ const translations = {
       noReceiptYet: "Hakuna risiti bado. Rekodi malipo kwanza.",
     },
     reports: {
-      intro: "Ripoti za makusanyo, idadi ya mizigo na salio lililobaki.",
+      intro: "Chagua sekta, chuja kwa kipindi, kisha pakua ripoti ya kisasa.",
       totalRevenue: "Jumla ya Mapato",
       orders: "Maagizo",
       avgOrder: "Wastani wa Oda",
@@ -926,6 +984,54 @@ const translations = {
       clearedCustomers: "Wateja waliomaliza malipo",
       outstandingByCustomer: "Salio kwa Kila Mteja",
       outstandingText: "Madeni ambayo bado yanahitaji kukusanywa.",
+      sectorsTitle: "Sekta za ripoti",
+      sectorsText: "Sekta zilizo na data kwenye mfumo pekee ndizo zinazoonyeshwa.",
+      previewTitle: "Hakiki ya ripoti",
+      previewText: "Hivi ndivyo ripoti yako itakavyokuwa kwa kipindi kilichochaguliwa.",
+      period: "Kipindi",
+      generated: "Imetengenezwa",
+      reportBadge: "Ripoti",
+      noRecords: "Hakuna rekodi kwa kipindi hiki.",
+      noSectors: "Hakuna data ya sekta bado. Ongeza rekodi ili kufungua ripoti.",
+      downloadReady: "Ripoti imepakuliwa.",
+      records: "Rekodi",
+      invoiced: "Zilizotolewa ankara",
+      collected: "Zilizokusanywa",
+      outstanding: "Zilizobaki",
+      delivered: "Zimewasilishwa",
+      inTransit: "Njiani",
+      pending: "Zinasubiri",
+      active: "Hai",
+      other: "Nyingine",
+      totalCost: "Jumla ya gharama",
+      code: "Namba",
+      origin: "Asili",
+      destination: "Kusudi",
+      vehicle: "Gari",
+      quantity: "Kiasi",
+      date: "Tarehe",
+      plate: "Namba ya gari",
+      trailer: "Trela",
+      driver: "Dereva",
+      phone: "Simu",
+      ownership: "Umiliki",
+      id: "Kitambulisho",
+      name: "Jina",
+      location: "Mahali",
+      buyingPrice: "Ununuzi",
+      sellingPrice: "Uuzaji",
+      type: "Aina",
+      workshop: "Warsha",
+      mechanic: "Fundi",
+      cost: "Gharama",
+      invoice: "Ankara",
+      customer: "Mteja",
+      issueDate: "Imetolewa",
+      dueDate: "Inadaiwa",
+      total: "Jumla",
+      paid: "Imelipwa",
+      balance: "Salio",
+      status: "Hali",
     },
     settings: {
       intro: "Simamia kampuni, majukumu, na akaunti za wafanyakazi.",
@@ -1689,6 +1795,10 @@ function App() {
   const [dashboardFilter, setDashboardFilter] = useState("today");
   const [dashboardCustomFrom, setDashboardCustomFrom] = useState("");
   const [dashboardCustomTo, setDashboardCustomTo] = useState("");
+  const [reportFilter, setReportFilter] = useState("today");
+  const [reportCustomFrom, setReportCustomFrom] = useState("");
+  const [reportCustomTo, setReportCustomTo] = useState("");
+  const [reportSector, setReportSector] = useState("billing");
   const [fleetFilter, setFleetFilter] = useState("all");
   const [fleetDetailsTab, setFleetDetailsTab] = useState("overview");
   const [maintenanceFilters, setMaintenanceFilters] = useState({
@@ -2261,14 +2371,117 @@ function App() {
     };
   }, [maintenanceRecords]);
 
-  const searchedOutstandingPayments = useMemo(() => {
-    const outstandingPayments = appData.payments.filter((payment) => payment.paid < payment.total);
-    const query = pageSearch.reports.trim().toLowerCase();
-    if (!query) return outstandingPayments;
-    return outstandingPayments.filter((payment) =>
-      [payment.customer, payment.date, payment.total, payment.paid].join(" ").toLowerCase().includes(query),
-    );
-  }, [appData.payments, pageSearch.reports]);
+  const availableReportSectors = useMemo(() => {
+    const icons = {
+      billing: CircleDollarSign,
+      shipments: Package,
+      deliveries: Route,
+      fleet: Truck,
+      customers: Users,
+      suppliers: Building2,
+      maintenance: Wrench,
+    };
+
+    return REPORT_SECTOR_IDS.map((id) => {
+      const count = getSectorItems(appData, id).length;
+      return {
+        id,
+        count,
+        label: t.pages[id] || id,
+        icon: icons[id] || BarChart3,
+      };
+    }).filter((sector) => sector.count > 0);
+  }, [appData, t.pages]);
+
+  useEffect(() => {
+    if (!availableReportSectors.length) return;
+    if (!availableReportSectors.some((sector) => sector.id === reportSector)) {
+      setReportSector(availableReportSectors[0].id);
+    }
+  }, [availableReportSectors, reportSector]);
+
+  const reportPreview = useMemo(() => {
+    const customRange = { from: reportCustomFrom, to: reportCustomTo };
+    const inRange = (dateValue) => isDateInRange(dateValue, reportFilter, "", customRange);
+    const sectorId = availableReportSectors.some((sector) => sector.id === reportSector)
+      ? reportSector
+      : availableReportSectors[0]?.id || "billing";
+    const sourceItems = getSectorItems(appData, sectorId);
+    const items = filterSectorItems(sourceItems, sectorId, inRange);
+    const columnLabels = {
+      invoice: t.reports.invoice,
+      customer: t.reports.customer,
+      issueDate: t.reports.issueDate,
+      dueDate: t.reports.dueDate,
+      total: t.reports.total,
+      paid: t.reports.paid,
+      balance: t.reports.balance,
+      status: t.reports.status,
+      code: t.reports.code,
+      origin: t.reports.origin,
+      destination: t.reports.destination,
+      vehicle: t.reports.vehicle,
+      quantity: t.reports.quantity,
+      date: t.reports.date,
+      plate: t.reports.plate,
+      trailer: t.reports.trailer,
+      driver: t.reports.driver,
+      phone: t.reports.phone,
+      ownership: t.reports.ownership,
+      id: t.reports.id,
+      name: t.reports.name,
+      location: t.reports.location,
+      buyingPrice: t.reports.buyingPrice,
+      sellingPrice: t.reports.sellingPrice,
+      type: t.reports.type,
+      workshop: t.reports.workshop,
+      mechanic: t.reports.mechanic,
+      cost: t.reports.cost,
+    };
+    const rows = buildSectorRows(sectorId, items, columnLabels);
+    const summary = buildSectorSummary(sectorId, items).map((item) => ({
+      ...item,
+      label: t.reports[item.labelKey] || item.labelKey,
+    }));
+    const periodText =
+      reportFilter === "today"
+        ? t.common.today
+        : reportFilter === "yesterday"
+          ? t.common.yesterday
+          : reportFilter === "week"
+            ? t.common.thisWeek
+            : reportFilter === "month"
+              ? t.common.thisMonth
+              : reportFilter === "custom"
+                ? `${reportCustomFrom || "…"} → ${reportCustomTo || "…"}`
+                : t.common.all;
+
+    return {
+      sectorId,
+      sectorLabel: t.pages[sectorId] || sectorId,
+      items,
+      rows,
+      summary,
+      periodText,
+      columnLabels,
+      headers: rows[0] ? Object.keys(rows[0]) : [],
+    };
+  }, [
+    appData,
+    availableReportSectors,
+    reportCustomFrom,
+    reportCustomTo,
+    reportFilter,
+    reportSector,
+    t.common.all,
+    t.common.customRange,
+    t.common.thisMonth,
+    t.common.thisWeek,
+    t.common.today,
+    t.common.yesterday,
+    t.pages,
+    t.reports,
+  ]);
 
   const searchedTeamMembers = useMemo(() => {
     const query = pageSearch.settings.trim().toLowerCase();
@@ -3515,17 +3728,55 @@ function App() {
     }
   };
 
-  const exportRevenueReport = async (format) => {
-    try {
-      const file = await reportsApi.exportReport({
-        name: "revenue-report",
-        module: "billing",
-        format,
-      });
-      downloadFileBlob(file.fileName, file.blob);
-    } catch (error) {
-      showToast(getApiErrorMessage(error, "Unable to export report."), "error");
+  const exportSectorReport = (format) => {
+    if (!reportPreview.sectorId) {
+      showToast(t.reports.noSectors, "error");
+      return;
     }
+
+    const labels = {
+      ...t.reports,
+      today: t.common.today,
+      yesterday: t.common.yesterday,
+      thisWeek: t.common.thisWeek,
+      thisMonth: t.common.thisMonth,
+      all: t.common.all,
+      poweredBy: t.billing.poweredBy,
+      column: reportPreview.columnLabels,
+      summary: {
+        records: t.reports.records,
+        invoiced: t.reports.invoiced,
+        collected: t.reports.collected,
+        outstanding: t.reports.outstanding,
+        delivered: t.reports.delivered,
+        inTransit: t.reports.inTransit,
+        pending: t.reports.pending,
+        active: t.reports.active,
+        other: t.reports.other,
+        totalCost: t.reports.totalCost,
+      },
+    };
+
+    const file =
+      format === "pdf"
+        ? buildReportPdf({
+            sectorId: reportPreview.sectorId,
+            items: reportPreview.items,
+            labels,
+            sectorLabel: reportPreview.sectorLabel,
+            business: authSession?.business,
+            filter: reportFilter,
+            customRange: { from: reportCustomFrom, to: reportCustomTo },
+          })
+        : buildReportCsv({
+            sectorId: reportPreview.sectorId,
+            items: reportPreview.items,
+            labels,
+            sectorLabel: reportPreview.sectorLabel,
+          });
+
+    downloadReportFile(file);
+    showToast(t.reports.downloadReady);
   };
 
   const authPage = !authSession || currentPage === "login" || currentPage === "signup";
@@ -4473,7 +4724,7 @@ function App() {
                             className="button small secondary"
                             onClick={() => openBillViewModal(payment)}
                           >
-                            <Eye size={14} />
+                            <Eye size={12} />
                             {t.billing.viewBill}
                           </button>
                           {hasReceipt ? (
@@ -4482,7 +4733,7 @@ function App() {
                               className="button small secondary"
                               onClick={() => openReceiptForInvoice(payment)}
                             >
-                              <FileText size={14} />
+                              <FileText size={12} />
                               {t.billing.viewReceipt}
                             </button>
                           ) : null}
@@ -4492,7 +4743,7 @@ function App() {
                             onClick={() => openPayInvoiceModal(payment)}
                             disabled={balance <= 0}
                           >
-                            <CircleDollarSign size={14} />
+                            <CircleDollarSign size={12} />
                             {t.billing.pay}
                           </button>
                         </div>
@@ -4517,97 +4768,146 @@ function App() {
           <h1>{t.pages.reports}</h1>
           <p>{t.reports.intro}</p>
         </div>
-        <div className="header-actions">
-          <SearchBox
-            label={t.common.search}
-            value={pageSearch.reports}
-            onChange={(value) => setPageSearch((current) => ({ ...current, reports: value }))}
-          />
-          <button type="button" className="button secondary" onClick={() => exportRevenueReport("pdf")}>
-            <FileDown size={16} />
+        <div className="header-actions report-toolbar">
+          <label className="language-picker compact">
+            <span>{t.common.filter}</span>
+            <select value={reportFilter} onChange={(event) => setReportFilter(event.target.value)}>
+              <option value="today">{t.common.today}</option>
+              <option value="yesterday">{t.common.yesterday}</option>
+              <option value="week">{t.common.thisWeek}</option>
+              <option value="month">{t.common.thisMonth}</option>
+              <option value="custom">{t.common.customRange}</option>
+              <option value="all">{t.common.all}</option>
+            </select>
+          </label>
+          {reportFilter === "custom" ? (
+            <>
+              <label className="language-picker compact">
+                <span>{t.common.from}</span>
+                <input
+                  type="date"
+                  value={reportCustomFrom}
+                  onChange={(event) => setReportCustomFrom(event.target.value)}
+                />
+              </label>
+              <label className="language-picker compact">
+                <span>{t.common.to}</span>
+                <input
+                  type="date"
+                  value={reportCustomTo}
+                  min={reportCustomFrom || undefined}
+                  onChange={(event) => setReportCustomTo(event.target.value)}
+                />
+              </label>
+            </>
+          ) : null}
+          <button type="button" className="button secondary" onClick={() => exportSectorReport("pdf")} disabled={!availableReportSectors.length}>
+            <FileDown size={14} />
             {t.common.exportPdf}
           </button>
-          <button type="button" className="button secondary" onClick={() => exportRevenueReport("excel")}>
-            <FileSpreadsheet size={16} />
+          <button type="button" className="button secondary" onClick={() => exportSectorReport("excel")} disabled={!availableReportSectors.length}>
+            <FileSpreadsheet size={14} />
             {t.common.exportExcel}
           </button>
-          <button type="button" className="button secondary" onClick={() => exportRevenueReport("csv")}>
-            <Download size={16} />
+          <button type="button" className="button secondary" onClick={() => exportSectorReport("csv")} disabled={!availableReportSectors.length}>
+            <Download size={14} />
             {t.common.exportCsv}
           </button>
         </div>
       </section>
 
-      <section className="stats-grid compact">
-        <StatCard label={t.reports.totalRevenue} value={formatMoney(totals.revenue, language)} icon={TrendingUp} tone="green" />
-        <StatCard label={t.reports.orders} value={appData.shipments.length} icon={Package} tone="brand" />
-        <StatCard label={t.reports.avgOrder} value={formatMoney(appData.payments.length ? Math.round(totals.revenue / appData.payments.length) : 0, language)} icon={BarChart3} tone="brand" />
-        <StatCard label={t.billing.outstanding} value={formatMoney(totals.outstanding, language)} icon={AlertCircle} tone="amber" />
+      <section className="glass-card table-card" style={{ padding: "20px 22px" }}>
+        <div className="section-row">
+          <div>
+            <h3>{t.reports.sectorsTitle}</h3>
+            <p>{t.reports.sectorsText}</p>
+          </div>
+        </div>
+        {availableReportSectors.length ? (
+          <div className="report-sectors" style={{ marginTop: 16 }}>
+            {availableReportSectors.map((sector) => {
+              const Icon = sector.icon;
+              return (
+                <button
+                  key={sector.id}
+                  type="button"
+                  className={`report-sector-card${reportPreview.sectorId === sector.id ? " active" : ""}`}
+                  onClick={() => setReportSector(sector.id)}
+                >
+                  <div className="report-sector-icon">
+                    <Icon size={14} />
+                  </div>
+                  <strong>{sector.label}</strong>
+                  <span>
+                    {sector.count} {t.reports.records.toLowerCase()}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <EmptyState icon={BarChart3} title={t.common.noRecordsTitle} text={t.reports.noSectors} />
+        )}
       </section>
 
-      <section className="feature-grid">
-        <div className="glass-card chart-card">
-          <div className="section-row">
+      {availableReportSectors.length ? (
+        <section className="glass-card report-preview-card">
+          <div className="report-preview-head">
             <div>
-              <h3>{t.reports.collectionsTitle}</h3>
-              <p>{t.reports.collectionsText}</p>
+              <h3>
+                {t.reports.previewTitle}: {reportPreview.sectorLabel}
+              </h3>
+              <p>
+                {t.reports.previewText} · {t.reports.period}: {reportPreview.periodText}
+              </p>
+            </div>
+            <div className="report-toolbar">
+              <button type="button" className="button primary" onClick={() => exportSectorReport("pdf")}>
+                <FileDown size={14} />
+                {t.common.exportPdf}
+              </button>
+              <button type="button" className="button secondary" onClick={() => exportSectorReport("csv")}>
+                <Download size={14} />
+                {t.common.exportCsv}
+              </button>
             </div>
           </div>
-          {appData.payments.length ? (
-            <div className="summary-list">
-              <div className="summary-row">
-                <span>{t.reports.paidInvoices}</span>
-                <strong>{totals.clearedCustomers}</strong>
+
+          <div className="report-summary-grid">
+            {reportPreview.summary.map((item) => (
+              <div key={item.labelKey} className="report-summary-pill">
+                <span>{item.label}</span>
+                <strong>{item.value}</strong>
               </div>
-              <div className="summary-row">
-                <span>{t.reports.openInvoices}</span>
-                <strong>{appData.payments.length - totals.clearedCustomers}</strong>
-              </div>
-              <div className="summary-row">
-                <span>{t.reports.clearedCustomers}</span>
-                <strong>{totals.clearedCustomers}</strong>
-              </div>
-              <div className="summary-row">
-                <span>{t.billing.collected}</span>
-                <strong>{formatMoney(totals.revenue, language)}</strong>
-              </div>
+            ))}
+          </div>
+
+          {reportPreview.rows.length ? (
+            <div className="report-table-wrap">
+              <table className="report-preview-table">
+                <thead>
+                  <tr>
+                    {reportPreview.headers.map((header) => (
+                      <th key={header}>{header}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {reportPreview.rows.slice(0, 8).map((row, index) => (
+                    <tr key={`${reportPreview.sectorId}-${index}`}>
+                      {reportPreview.headers.map((header) => (
+                        <td key={header}>{row[header]}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           ) : (
-            <EmptyState icon={BarChart3} title={t.common.noRecordsTitle} text={t.common.noRecordsText} />
+            <EmptyState icon={BarChart3} title={t.common.noRecordsTitle} text={t.reports.noRecords} />
           )}
-        </div>
-
-        <div className="glass-card chart-card">
-          <div className="section-row">
-            <div>
-              <h3>{t.reports.outstandingByCustomer}</h3>
-              <p>{t.reports.outstandingText}</p>
-            </div>
-          </div>
-          <div className="list-stack tight">
-            {searchedOutstandingPayments.length ? (
-              searchedOutstandingPayments.map((payment) => {
-                const remaining = payment.total - payment.paid;
-                const coverage = Math.round((remaining / payment.total) * 100);
-
-                return (
-                  <div key={payment.id} className="customer-balance">
-                    <div className="section-row">
-                      <strong>{payment.customer}</strong>
-                      <span>{formatMoney(remaining, language)}</span>
-                    </div>
-                    <div className="progress-track slim">
-                      <div className="progress-fill amber" style={{ width: `${coverage}%` }} />
-                    </div>
-                  </div>
-                );
-              })
-            ) : (
-              <EmptyState icon={AlertCircle} title={t.common.noRecordsTitle} text={t.common.noRecordsText} />
-            )}
-          </div>
-        </div>
-      </section>
+        </section>
+      ) : null}
     </div>
   );
 

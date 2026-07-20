@@ -471,6 +471,8 @@ const translations = {
       fleetUpdated: "Fleet vehicle updated",
       fleetDeleted: "Fleet vehicle deleted",
       confirmFleetDelete: "Delete this vehicle from the fleet?",
+      confirmFleetDeleteTitle: "Delete vehicle",
+      confirmFleetDeleteBody: "This removes the vehicle from your fleet. You can’t undo this action.",
       fillShipment: "Please complete all shipment fields",
       shipmentCreated: "Shipment created",
       shipmentStatusUpdated: "Shipment status updated",
@@ -487,6 +489,8 @@ const translations = {
       maintenanceUpdated: "Maintenance record updated",
       maintenanceDeleted: "Maintenance record deleted",
       confirmMaintenanceDelete: "Delete this maintenance record?",
+      confirmMaintenanceDeleteTitle: "Delete maintenance record",
+      confirmMaintenanceDeleteBody: "This permanently deletes the maintenance record and its attachments.",
       signedIn: "Signed in successfully",
       workspaceCreated: "Workspace created successfully",
       businessIdCreated: "Your Business ID is",
@@ -888,6 +892,8 @@ const translations = {
       fleetUpdated: "Taarifa za gari zimesasishwa",
       fleetDeleted: "Gari limefutwa",
       confirmFleetDelete: "Ufute gari hili kutoka kwenye mfumo?",
+      confirmFleetDeleteTitle: "Futa gari",
+      confirmFleetDeleteBody: "Hii itaondoa gari kutoka kwenye mfumo. Huwezi kurudisha kitendo hiki.",
       fillShipment: "Tafadhali jaza taarifa zote za mzigo",
       shipmentCreated: "Mzigo umetengenezwa",
       shipmentStatusUpdated: "Hali ya mzigo imesasishwa",
@@ -904,6 +910,8 @@ const translations = {
       maintenanceUpdated: "Rekodi ya matengenezo imesasishwa",
       maintenanceDeleted: "Rekodi ya matengenezo imefutwa",
       confirmMaintenanceDelete: "Ufute rekodi hii ya matengenezo?",
+      confirmMaintenanceDeleteTitle: "Futa rekodi ya matengenezo",
+      confirmMaintenanceDeleteBody: "Hii itafuta kabisa rekodi ya matengenezo na faili zake.",
       signedIn: "Umeingia kwa mafanikio",
       workspaceCreated: "Mfumo umetengenezwa kwa mafanikio",
       businessIdCreated: "Kitambulisho chako cha biashara ni",
@@ -1172,12 +1180,57 @@ function EmptyState({ icon: Icon, title, text }) {
 
 function Toast({ toast, onClose }) {
   return (
-    <div className={`toast ${toast.type}`}>
-      {toast.type === "success" ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
+    <div className={`toast toast-${toast.type}`} role="status">
+      <div className={`toast-icon toast-icon-${toast.type}`}>
+        {toast.type === "success" ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
+      </div>
       <span>{toast.message}</span>
-      <button type="button" className="icon-button muted" onClick={onClose}>
+      <button type="button" className="toast-close" onClick={onClose} aria-label="Dismiss">
         <X size={14} />
       </button>
+    </div>
+  );
+}
+
+function ConfirmDialog({
+  title,
+  message,
+  confirmLabel = "Confirm",
+  cancelLabel = "Cancel",
+  tone = "danger",
+  onConfirm,
+  onCancel,
+}) {
+  return (
+    <div className="modal-backdrop confirm-backdrop" role="presentation" onClick={onCancel}>
+      <div
+        className="confirm-card glass-elevated"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="confirm-title"
+        aria-describedby="confirm-message"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className={`confirm-icon confirm-icon-${tone}`}>
+          {tone === "danger" ? <Trash2 size={20} /> : <AlertCircle size={20} />}
+        </div>
+        <div className="confirm-copy">
+          <h3 id="confirm-title">{title}</h3>
+          <p id="confirm-message">{message}</p>
+        </div>
+        <div className="confirm-actions">
+          <button type="button" className="button secondary" onClick={onCancel}>
+            {cancelLabel}
+          </button>
+          <button
+            type="button"
+            className={`button ${tone === "danger" ? "danger" : "primary"}`}
+            onClick={onConfirm}
+          >
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1255,6 +1308,7 @@ function App() {
   const [fileUploading, setFileUploading] = useState(false);
   const [appData, setAppData] = useState(emptyAppData);
   const [toast, setToast] = useState(null);
+  const [confirmDialog, setConfirmDialog] = useState(null);
   const [deliveryFilter, setDeliveryFilter] = useState("month");
   const [deliveryDate, setDeliveryDate] = useState("");
   const [fleetFilter, setFleetFilter] = useState("all");
@@ -1924,6 +1978,22 @@ function App() {
     setToast({ message, type });
     window.clearTimeout(showToast.timeoutId);
     showToast.timeoutId = window.setTimeout(() => setToast(null), 3200);
+  };
+
+  const askConfirm = ({ title, message, confirmLabel, tone = "danger" }) =>
+    new Promise((resolve) => {
+      setConfirmDialog({
+        title,
+        message,
+        confirmLabel,
+        tone,
+        resolve,
+      });
+    });
+
+  const closeConfirm = (result) => {
+    confirmDialog?.resolve?.(result);
+    setConfirmDialog(null);
   };
 
   const uploadsBaseUrl = useMemo(() => {
@@ -2733,7 +2803,13 @@ function App() {
   };
 
   const deleteFleetVehicle = async (id) => {
-    if (!window.confirm(t.toast.confirmFleetDelete)) return;
+    const confirmed = await askConfirm({
+      title: t.toast.confirmFleetDeleteTitle,
+      message: t.toast.confirmFleetDeleteBody,
+      confirmLabel: t.common.delete,
+      tone: "danger",
+    });
+    if (!confirmed) return;
 
     try {
       await fleetApi.remove(id);
@@ -2746,7 +2822,15 @@ function App() {
   };
 
   const deleteMaintenanceRecord = async (id) => {
-    if (!canDeleteMaintenance || !window.confirm(t.toast.confirmMaintenanceDelete)) return;
+    if (!canDeleteMaintenance) return;
+
+    const confirmed = await askConfirm({
+      title: t.toast.confirmMaintenanceDeleteTitle,
+      message: t.toast.confirmMaintenanceDeleteBody,
+      confirmLabel: t.common.delete,
+      tone: "danger",
+    });
+    if (!confirmed) return;
 
     try {
       await maintenanceApi.remove(id);
@@ -4366,6 +4450,18 @@ function App() {
         <div className="toast-stack">
           <Toast toast={toast} onClose={() => setToast(null)} />
         </div>
+      ) : null}
+
+      {confirmDialog ? (
+        <ConfirmDialog
+          title={confirmDialog.title}
+          message={confirmDialog.message}
+          confirmLabel={confirmDialog.confirmLabel}
+          cancelLabel={t.common.cancel}
+          tone={confirmDialog.tone}
+          onConfirm={() => closeConfirm(true)}
+          onCancel={() => closeConfirm(false)}
+        />
       ) : null}
 
       {modal.type === "fleet" ? (

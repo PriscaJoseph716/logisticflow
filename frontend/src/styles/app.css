@@ -685,6 +685,12 @@ textarea {
   box-shadow: 0 10px 28px rgba(79, 124, 255, 0.22);
 }
 
+.button.danger {
+  color: #ffffff;
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  box-shadow: 0 10px 28px rgba(220, 38, 38, 0.22);
+}
+
 .button.secondary,
 .icon-button,
 .pill-button {
@@ -1928,36 +1934,79 @@ textarea {
   position: fixed;
   top: 18px;
   right: 18px;
-  z-index: 40;
+  z-index: 60;
+  pointer-events: none;
 }
 
 .toast {
+  pointer-events: auto;
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
   padding: 12px 14px;
-  border-radius: 18px;
-  min-width: 240px;
-  background: #ffffff;
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow-strong);
+  border-radius: 16px;
+  min-width: min(340px, calc(100vw - 36px));
+  max-width: 380px;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(229, 231, 235, 0.9);
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.14);
+  backdrop-filter: blur(12px);
+  animation: toast-in 220ms ease-out;
 }
 
-.toast > svg {
+.toast-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
 }
 
-.toast.success {
+.toast-icon-success {
   color: #15803d;
+  background: rgba(34, 197, 94, 0.12);
 }
 
-.toast.error {
+.toast-icon-error {
   color: #b91c1c;
+  background: rgba(239, 68, 68, 0.12);
 }
 
 .toast span {
   flex: 1;
   color: var(--text);
+  font-size: 0.92rem;
+  line-height: 1.35;
+}
+
+.toast-close {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.toast-close:hover {
+  background: var(--surface-muted);
+  color: var(--text);
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .modal-backdrop {
@@ -1968,6 +2017,84 @@ textarea {
   background: rgba(15, 23, 42, 0.35);
   padding: 20px;
   z-index: 50;
+}
+
+.confirm-backdrop {
+  z-index: 70;
+  background: rgba(15, 23, 42, 0.48);
+  backdrop-filter: blur(4px);
+  animation: confirm-fade-in 160ms ease-out;
+}
+
+.confirm-card {
+  width: min(100%, 400px);
+  border-radius: 22px;
+  padding: 22px 22px 18px;
+  background: #ffffff;
+  border: 1px solid rgba(229, 231, 235, 0.95);
+  box-shadow: 0 28px 64px rgba(15, 23, 42, 0.22);
+  display: grid;
+  gap: 16px;
+  animation: confirm-pop-in 200ms ease-out;
+}
+
+.confirm-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.confirm-icon-danger {
+  color: #dc2626;
+  background: rgba(239, 68, 68, 0.12);
+}
+
+.confirm-icon-info {
+  color: var(--blue-deep);
+  background: var(--blue-soft);
+}
+
+.confirm-copy h3 {
+  margin: 0 0 6px;
+  font-size: 1.05rem;
+  letter-spacing: -0.02em;
+}
+
+.confirm-copy p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 4px;
+}
+
+@keyframes confirm-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes confirm-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .modal-card {

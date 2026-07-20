@@ -1782,6 +1782,34 @@ textarea {
   border-bottom: 0;
 }
 
+.billing-table td strong {
+  font-weight: 600;
+}
+
+.billing-actions {
+  gap: 8px;
+}
+
+.billing-actions .button {
+  white-space: nowrap;
+}
+
+.billing-pay-summary {
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.receipt-preview {
+  gap: 4px;
+}
+
+.receipt-thanks {
+  margin: 16px 0 0;
+  color: var(--text-muted);
+  font-size: 0.92rem;
+}
+
 .progress-track {
   height: 10px;
   border-radius: 999px;
@@ -2187,6 +2215,7 @@ textarea {
 
 .modal-footer {
   justify-content: flex-end;
+  flex-wrap: wrap;
   border-top: 1px solid var(--border);
 }
 

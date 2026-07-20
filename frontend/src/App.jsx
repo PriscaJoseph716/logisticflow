@@ -28,6 +28,7 @@ import {
   Route,
   Search,
   Settings,
+  Share2,
   ShieldCheck,
   Trash2,
   TrendingUp,
@@ -380,6 +381,32 @@ const translations = {
       totalOwed: "Total Owed",
       collected: "Collected",
       outstanding: "Outstanding",
+      invoice: "Invoice",
+      customer: "Customer",
+      issueDate: "Issued",
+      dueDate: "Due",
+      total: "Total",
+      paid: "Paid",
+      balance: "Balance",
+      status: "Status",
+      actions: "Actions",
+      pay: "Pay",
+      viewBill: "View bill",
+      downloadReceipt: "Download receipt",
+      shareReceipt: "Share",
+      receipt: "Receipt",
+      receiptReady: "Payment recorded. Receipt is ready.",
+      billTitle: "Invoice details",
+      receiptTitle: "Payment receipt",
+      noBalance: "Fully paid",
+      method: "Payment method",
+      receiptNumber: "Receipt no.",
+      company: "Company",
+      thankYou: "Thank you for your payment.",
+      statusOpen: "Open",
+      statusPartial: "Partial",
+      statusPaid: "Paid",
+      statusOverdue: "Overdue",
     },
     reports: {
       intro: "Analytics for collections, shipment volume, and outstanding balances.",
@@ -805,6 +832,32 @@ const translations = {
       totalOwed: "Jumla ya Deni",
       collected: "Yaliyokusanywa",
       outstanding: "Linalobaki",
+      invoice: "Ankara",
+      customer: "Mteja",
+      issueDate: "Imetolewa",
+      dueDate: "Inadaiwa",
+      total: "Jumla",
+      paid: "Imelipwa",
+      balance: "Salio",
+      status: "Hali",
+      actions: "Vitendo",
+      pay: "Lipa",
+      viewBill: "Tazama ankara",
+      downloadReceipt: "Pakua risiti",
+      shareReceipt: "Shiriki",
+      receipt: "Risiti",
+      receiptReady: "Malipo yamehifadhiwa. Risiti iko tayari.",
+      billTitle: "Maelezo ya ankara",
+      receiptTitle: "Risiti ya malipo",
+      noBalance: "Imelipwa yote",
+      method: "Njia ya malipo",
+      receiptNumber: "Namba ya risiti",
+      company: "Kampuni",
+      thankYou: "Asante kwa malipo yako.",
+      statusOpen: "Wazi",
+      statusPartial: "Sehemu",
+      statusPaid: "Imelipwa",
+      statusOverdue: "Imechelewa",
     },
     reports: {
       intro: "Ripoti za makusanyo, idadi ya mizigo na salio lililobaki.",
@@ -936,10 +989,26 @@ function formatMoney(value, language = "en") {
 }
 
 function statusTone(status) {
-  if (status === "active" || status === "delivered" || status === "completed") return "green";
-  if (status === "transit" || status === "inProgress") return "blue";
-  if (status === "maintenance" || status === "cancelled") return "red";
+  if (status === "active" || status === "delivered" || status === "completed" || status === "paid") return "green";
+  if (status === "transit" || status === "inProgress" || status === "partial") return "blue";
+  if (status === "maintenance" || status === "cancelled" || status === "overdue") return "red";
   return "amber";
+}
+
+function invoiceBalance(invoice) {
+  return Math.max(0, moneyValue(invoice?.total) - moneyValue(invoice?.paid));
+}
+
+function invoiceDisplayStatus(invoice) {
+  const balance = invoiceBalance(invoice);
+  if (balance <= 0 || invoice?.status === "paid") return "paid";
+  if (invoice?.status === "overdue") return "overdue";
+  if (invoice?.dueDate) {
+    const today = new Date().toISOString().slice(0, 10);
+    if (invoice.dueDate < today && balance > 0) return "overdue";
+  }
+  if (moneyValue(invoice?.paid) > 0 || invoice?.status === "partial") return "partial";
+  return "open";
 }
 
 function resolveRoleKey(user, permissions = []) {
@@ -1070,14 +1139,7 @@ function matchesDateRange(dateValue, startDate, endDate) {
 
 function downloadBlob(filename, content, mimeType) {
   const blob = new Blob([content], { type: mimeType });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = filename;
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  URL.revokeObjectURL(url);
+  downloadFileBlob(filename, blob);
 }
 
 function downloadFileBlob(filename, blob) {
@@ -1089,6 +1151,116 @@ function downloadFileBlob(filename, blob) {
   anchor.click();
   anchor.remove();
   URL.revokeObjectURL(url);
+}
+
+function moneyValue(value) {
+  const amount = Number(value);
+  return Number.isFinite(amount) ? amount : 0;
+}
+
+function downloadReceiptFile(receipt, labels) {
+  downloadBlob(`${receipt.id}.html`, receiptHtml(receipt, labels), "text/html");
+}
+
+function buildPaymentReceipt({
+  invoice,
+  amountPaid,
+  business,
+  method = "BANK_TRANSFER",
+  paidAt = new Date(),
+}) {
+  const total = moneyValue(invoice.total);
+  const previouslyPaid = moneyValue(invoice.paid);
+  const paidNow = moneyValue(amountPaid);
+  const paid = previouslyPaid + paidNow;
+  const balance = Math.max(0, total - paid);
+  const stamp = paidAt instanceof Date ? paidAt : new Date(paidAt);
+
+  return {
+    id: `RCP-${Date.now().toString().slice(-8)}`,
+    invoiceId: invoice.id,
+    invoiceNumber: invoice.invoiceNumber ?? invoice.id,
+    customer: invoice.customer ?? "Customer",
+    customerId: invoice.customerId ?? "",
+    companyName: business?.companyName || business?.name || "LogisticsFlow",
+    businessId: business?.businessId || "",
+    issueDate: invoice.date ?? "",
+    dueDate: invoice.dueDate ?? "",
+    method,
+    paidAt: stamp.toISOString(),
+    paidAtLabel: stamp.toLocaleString(),
+    amountPaid: paidNow,
+    total,
+    paid,
+    balance,
+    status: balance <= 0 ? "paid" : "partial",
+  };
+}
+
+function receiptHtml(receipt, labels) {
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>${labels.receiptTitle} ${receipt.id}</title>
+  <style>
+    body { font-family: Arial, sans-serif; color: #111827; margin: 0; padding: 32px; background: #f8fafc; }
+    .sheet { max-width: 640px; margin: 0 auto; background: #fff; border: 1px solid #e5e7eb; border-radius: 16px; padding: 28px; }
+    h1 { margin: 0 0 4px; font-size: 22px; }
+    .muted { color: #6b7280; margin: 0 0 20px; }
+    .row { display: flex; justify-content: space-between; gap: 16px; padding: 10px 0; border-bottom: 1px solid #f3f4f6; }
+    .row strong { font-weight: 600; }
+    .total { font-size: 18px; margin-top: 16px; }
+    .thanks { margin-top: 24px; color: #374151; }
+  </style>
+</head>
+<body>
+  <div class="sheet">
+    <h1>${labels.receiptTitle}</h1>
+    <p class="muted">${receipt.companyName}${receipt.businessId ? ` · ${receipt.businessId}` : ""}</p>
+    <div class="row"><span>${labels.receiptNumber}</span><strong>${receipt.id}</strong></div>
+    <div class="row"><span>${labels.invoice}</span><strong>${receipt.invoiceNumber}</strong></div>
+    <div class="row"><span>${labels.customer}</span><strong>${receipt.customer}</strong></div>
+    <div class="row"><span>${labels.method}</span><strong>${receipt.method}</strong></div>
+    <div class="row"><span>${labels.issueDate}</span><strong>${receipt.paidAtLabel}</strong></div>
+    <div class="row"><span>${labels.total}</span><strong>TSh ${Number(receipt.total).toLocaleString()}</strong></div>
+    <div class="row"><span>${labels.paid}</span><strong>TSh ${Number(receipt.amountPaid).toLocaleString()}</strong></div>
+    <div class="row total"><span>${labels.balance}</span><strong>TSh ${Number(receipt.balance).toLocaleString()}</strong></div>
+    <p class="thanks">${labels.thankYou}</p>
+  </div>
+</body>
+</html>`;
+}
+
+async function shareReceiptFile(receipt, labels) {
+  const html = receiptHtml(receipt, labels);
+  const fileName = `${receipt.id}.html`;
+  const blob = new Blob([html], { type: "text/html" });
+  const file = new File([blob], fileName, { type: "text/html" });
+  const summary = `${labels.receiptTitle} ${receipt.id}\n${receipt.customer}\nTSh ${Number(receipt.amountPaid).toLocaleString()}`;
+
+  if (navigator.share) {
+    try {
+      if (navigator.canShare?.({ files: [file] })) {
+        await navigator.share({
+          title: `${labels.receiptTitle} ${receipt.id}`,
+          text: summary,
+          files: [file],
+        });
+        return true;
+      }
+      await navigator.share({
+        title: `${labels.receiptTitle} ${receipt.id}`,
+        text: summary,
+      });
+      return true;
+    } catch (error) {
+      if (error?.name === "AbortError") return false;
+    }
+  }
+
+  downloadFileBlob(fileName, blob);
+  return false;
 }
 
 function toDateKey(dateValue) {
@@ -1275,7 +1447,16 @@ function ConfirmDialog({
   );
 }
 
-function Modal({ title, children, onClose, onSave, saveLabel = "Save", cancelLabel = "Cancel" }) {
+function Modal({
+  title,
+  children,
+  onClose,
+  onSave,
+  saveLabel = "Save",
+  cancelLabel = "Cancel",
+  hideSave = false,
+  footerActions = null,
+}) {
   return (
     <div className="modal-backdrop" role="presentation" onClick={onClose}>
       <div className="modal-card glass-elevated" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
@@ -1287,12 +1468,15 @@ function Modal({ title, children, onClose, onSave, saveLabel = "Save", cancelLab
         </div>
         <div className="modal-body">{children}</div>
         <div className="modal-footer">
+          {footerActions}
           <button type="button" className="button secondary" onClick={onClose}>
             {cancelLabel}
           </button>
-          <button type="button" className="button primary" onClick={onSave}>
-            {saveLabel}
-          </button>
+          {!hideSave && onSave ? (
+            <button type="button" className="button primary" onClick={onSave}>
+              {saveLabel}
+            </button>
+          ) : null}
         </div>
       </div>
     </div>
@@ -1699,7 +1883,18 @@ function App() {
     const query = pageSearch.billing.trim().toLowerCase();
     if (!query) return appData.payments;
     return appData.payments.filter((payment) =>
-      [payment.customer, payment.date, payment.total, payment.paid].join(" ").toLowerCase().includes(query),
+      [
+        payment.invoiceNumber,
+        payment.customer,
+        payment.date,
+        payment.dueDate,
+        payment.total,
+        payment.paid,
+        payment.status,
+      ]
+        .join(" ")
+        .toLowerCase()
+        .includes(query),
     );
   }, [appData.payments, pageSearch.billing]);
 
@@ -1887,6 +2082,11 @@ function App() {
     [maintenanceRecords, modal.recordId],
   );
 
+  const selectedBillingInvoice = useMemo(
+    () => appData.payments.find((payment) => payment.id === modal.invoiceId) ?? null,
+    [appData.payments, modal.invoiceId],
+  );
+
   const maintenanceAnalytics = useMemo(() => {
     const monthly = {};
     const byVehicle = {};
@@ -1975,7 +2175,9 @@ function App() {
       return;
     }
     if (type === "payment") {
-      setModalForm({ customer: appData.customers[0]?.name ?? "", amount: "" });
+      setModalForm({ customer: appData.customers[0]?.name ?? "", amount: "", invoiceId: "" });
+      setModal({ type, mode: "create" });
+      return;
     }
     if (type === "supplier") {
       setModalForm({ id: "", name: "", phone: "", location: "", buyingPrice: "", sellingPrice: "" });
@@ -2008,6 +2210,31 @@ function App() {
     }
 
     setModal({ type });
+  };
+
+  const openPayInvoiceModal = (invoice) => {
+    const balance = invoiceBalance(invoice);
+    if (balance <= 0) {
+      showToast(t.billing.noBalance);
+      return;
+    }
+    setModalForm({
+      customer: invoice.customer ?? "",
+      amount: String(balance),
+      invoiceId: invoice.id,
+    });
+    setModal({ type: "payment", mode: "pay", invoiceId: invoice.id });
+  };
+
+  const openBillViewModal = (invoice) => {
+    setModal({ type: "billView", invoiceId: invoice.id });
+  };
+
+  const invoiceStatusLabel = (status) => {
+    if (status === "paid") return t.billing.statusPaid;
+    if (status === "partial") return t.billing.statusPartial;
+    if (status === "overdue") return t.billing.statusOverdue;
+    return t.billing.statusOpen;
   };
 
   const openFleetEditModal = (vehicle) => {
@@ -2741,14 +2968,18 @@ function App() {
 
     if (modal.type === "payment") {
       const amount = Number(modalForm.amount);
-      if (!modalForm.customer || !amount) {
+      if ((!modalForm.invoiceId && !modalForm.customer) || !amount) {
         showToast(t.toast.fillPayment, "error");
         return;
       }
 
-      const targetInvoice = appData.payments.find(
-        (payment) => payment.customer === modalForm.customer && payment.paid < payment.total,
-      );
+      const targetInvoice =
+        (modalForm.invoiceId
+          ? appData.payments.find((payment) => payment.id === modalForm.invoiceId)
+          : null) ||
+        appData.payments.find(
+          (payment) => payment.customer === modalForm.customer && invoiceBalance(payment) > 0,
+        );
 
       if (!targetInvoice) {
         showToast(
@@ -2760,19 +2991,68 @@ function App() {
         return;
       }
 
-      softPersist(
-        () =>
-          paymentsApi.create({
+      const balance = invoiceBalance(targetInvoice);
+      if (amount > balance) {
+        showToast(
+          language === "sw"
+            ? `Kiasi kinazidi salio (${formatMoney(balance, language)}).`
+            : `Amount exceeds outstanding balance (${formatMoney(balance, language)}).`,
+          "error",
+        );
+        return;
+      }
+
+      if (saveInFlightRef.current) return;
+      saveInFlightRef.current = true;
+
+      const receipt = buildPaymentReceipt({
+        invoice: targetInvoice,
+        amountPaid: amount,
+        business: authSession?.business,
+        method: "BANK_TRANSFER",
+      });
+
+      setAppData((current) => ({
+        ...current,
+        payments: current.payments.map((payment) =>
+          payment.id === targetInvoice.id
+            ? {
+                ...payment,
+                paid: moneyValue(payment.paid) + amount,
+                status: moneyValue(payment.paid) + amount >= moneyValue(payment.total) ? "paid" : "partial",
+              }
+            : payment,
+        ),
+      }));
+
+      setModal({ type: "receipt", receipt });
+      showToast(t.billing.receiptReady);
+
+      void (async () => {
+        try {
+          await paymentsApi.create({
             invoiceId: targetInvoice.id,
             customerId: targetInvoice.customerId || undefined,
             amount,
             paymentDate: new Date().toISOString(),
             method: "BANK_TRANSFER",
             status: "COMPLETED",
-          }),
-        t.toast.paymentRecorded,
-        language === "sw" ? "Imeshindikana kuhifadhi malipo." : "Unable to record payment. Please try again.",
-      );
+          });
+          refreshAfterSave();
+        } catch (error) {
+          showToast(
+            getApiErrorMessage(
+              error,
+              language === "sw" ? "Imeshindikana kuhifadhi malipo." : "Unable to record payment. Please try again.",
+            ),
+            "error",
+          );
+          refreshAfterSave();
+        } finally {
+          saveInFlightRef.current = false;
+        }
+      })();
+      return;
     }
   };
 
@@ -3973,36 +4253,71 @@ function App() {
         <StatCard label={t.billing.outstanding} value={formatMoney(appData.billingSummary?.totals?.outstandingBalance ?? totals.outstanding, language)} icon={AlertCircle} tone="amber" />
       </section>
 
-      <section className="list-stack">
+      <section className="glass-card table-card">
         {searchedPayments.length ? (
-          searchedPayments.map((payment) => {
-            const progress = Math.round((payment.paid / payment.total) * 100);
-            const remaining = payment.total - payment.paid;
+          <div className="table-wrapper">
+            <table className="history-table billing-table">
+              <thead>
+                <tr>
+                  <th>{t.billing.invoice}</th>
+                  <th>{t.billing.customer}</th>
+                  <th>{t.billing.issueDate}</th>
+                  <th>{t.billing.dueDate}</th>
+                  <th>{t.billing.total}</th>
+                  <th>{t.billing.paid}</th>
+                  <th>{t.billing.balance}</th>
+                  <th>{t.billing.status}</th>
+                  <th>{t.billing.actions}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {searchedPayments.map((payment) => {
+                  const balance = invoiceBalance(payment);
+                  const status = invoiceDisplayStatus(payment);
 
-            return (
-              <article key={payment.id} className="glass-card payment-card">
-                <div className="section-row">
-                  <div>
-                    <strong>{payment.customer}</strong>
-                    <p>{payment.date}</p>
-                  </div>
-                  <div className="payment-amounts">
-                    <strong>{formatMoney(payment.total, language)}</strong>
-                    <span className={remaining > 0 ? "warning-text" : "success-text"}>
-                      {remaining > 0 ? `${formatMoney(remaining, language)} ${t.common.remaining}` : t.common.fullyPaid}
-                    </span>
-                  </div>
-                </div>
-                <div className="progress-track">
-                  <div className={`progress-fill ${remaining > 0 ? "brand" : "green"}`} style={{ width: `${progress}%` }} />
-                </div>
-                <div className="progress-copy">
-                  <span>{formatMoney(payment.paid, language)} {t.common.paid}</span>
-                  <span>{progress}%</span>
-                </div>
-              </article>
-            );
-          })
+                  return (
+                    <tr key={payment.id}>
+                      <td>
+                        <strong>{payment.invoiceNumber || payment.id}</strong>
+                      </td>
+                      <td>{payment.customer}</td>
+                      <td>{payment.date || "—"}</td>
+                      <td>{payment.dueDate || "—"}</td>
+                      <td>{formatMoney(payment.total, language)}</td>
+                      <td>{formatMoney(payment.paid, language)}</td>
+                      <td className={balance > 0 ? "warning-text" : "success-text"}>
+                        {formatMoney(balance, language)}
+                      </td>
+                      <td>
+                        <StatusBadge status={status} label={invoiceStatusLabel(status)} />
+                      </td>
+                      <td>
+                        <div className="table-actions billing-actions">
+                          <button
+                            type="button"
+                            className="button small secondary"
+                            onClick={() => openBillViewModal(payment)}
+                          >
+                            <Eye size={14} />
+                            {t.billing.viewBill}
+                          </button>
+                          <button
+                            type="button"
+                            className="button small primary"
+                            onClick={() => openPayInvoiceModal(payment)}
+                            disabled={balance <= 0}
+                          >
+                            <CircleDollarSign size={14} />
+                            {t.billing.pay}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         ) : (
           <EmptyState icon={BarChart3} title={t.common.noRecordsTitle} text={t.common.noRecordsText} />
         )}
@@ -5065,11 +5380,35 @@ function App() {
       ) : null}
 
       {modal.type === "payment" ? (
-        <Modal title={t.modal.recordPayment} onClose={closeModal} onSave={handleModalSave} saveLabel={t.common.save} cancelLabel={t.common.cancel}>
+        <Modal title={t.modal.recordPayment} onClose={closeModal} onSave={handleModalSave} saveLabel={t.billing.pay} cancelLabel={t.common.cancel}>
           <div className="form-grid single">
+            {modalForm.invoiceId ? (
+              <div className="fleet-modal-details billing-pay-summary">
+                <div className="summary-row">
+                  <span>{t.billing.invoice}</span>
+                  <strong>
+                    {appData.payments.find((item) => item.id === modalForm.invoiceId)?.invoiceNumber || modalForm.invoiceId}
+                  </strong>
+                </div>
+                <div className="summary-row">
+                  <span>{t.billing.balance}</span>
+                  <strong>
+                    {formatMoney(
+                      invoiceBalance(appData.payments.find((item) => item.id === modalForm.invoiceId)),
+                      language,
+                    )}
+                  </strong>
+                </div>
+              </div>
+            ) : null}
             <label>
               {t.modal.customer}
-              <select name="customer" value={modalForm.customer ?? ""} onChange={updateForm}>
+              <select
+                name="customer"
+                value={modalForm.customer ?? ""}
+                onChange={updateForm}
+                disabled={Boolean(modalForm.invoiceId)}
+              >
                 {appData.customers.map((item) => (
                   <option key={item.id} value={item.name}>
                     {item.name}
@@ -5081,6 +5420,124 @@ function App() {
               {t.modal.amount}
               <input name="amount" type="number" value={modalForm.amount ?? ""} onChange={updateForm} placeholder="5000" />
             </label>
+          </div>
+        </Modal>
+      ) : null}
+
+      {modal.type === "billView" && selectedBillingInvoice ? (
+        <Modal
+          title={t.billing.billTitle}
+          onClose={closeModal}
+          hideSave={invoiceBalance(selectedBillingInvoice) <= 0}
+          onSave={() => openPayInvoiceModal(selectedBillingInvoice)}
+          saveLabel={t.billing.pay}
+          cancelLabel={t.common.close}
+        >
+          <div className="fleet-modal-details">
+            <div className="summary-row">
+              <span>{t.billing.invoice}</span>
+              <strong>{selectedBillingInvoice.invoiceNumber || selectedBillingInvoice.id}</strong>
+            </div>
+            <div className="summary-row">
+              <span>{t.billing.customer}</span>
+              <strong>{selectedBillingInvoice.customer}</strong>
+            </div>
+            <div className="summary-row">
+              <span>{t.billing.issueDate}</span>
+              <strong>{selectedBillingInvoice.date || "—"}</strong>
+            </div>
+            <div className="summary-row">
+              <span>{t.billing.dueDate}</span>
+              <strong>{selectedBillingInvoice.dueDate || "—"}</strong>
+            </div>
+            <div className="summary-row">
+              <span>{t.billing.total}</span>
+              <strong>{formatMoney(selectedBillingInvoice.total, language)}</strong>
+            </div>
+            <div className="summary-row">
+              <span>{t.billing.paid}</span>
+              <strong>{formatMoney(selectedBillingInvoice.paid, language)}</strong>
+            </div>
+            <div className="summary-row">
+              <span>{t.billing.balance}</span>
+              <strong>{formatMoney(invoiceBalance(selectedBillingInvoice), language)}</strong>
+            </div>
+            <div className="summary-row">
+              <span>{t.billing.status}</span>
+              <strong>
+                <StatusBadge
+                  status={invoiceDisplayStatus(selectedBillingInvoice)}
+                  label={invoiceStatusLabel(invoiceDisplayStatus(selectedBillingInvoice))}
+                />
+              </strong>
+            </div>
+          </div>
+        </Modal>
+      ) : null}
+
+      {modal.type === "receipt" && modal.receipt ? (
+        <Modal
+          title={t.billing.receiptTitle}
+          onClose={closeModal}
+          hideSave
+          cancelLabel={t.common.close}
+          footerActions={
+            <>
+              <button
+                type="button"
+                className="button secondary"
+                onClick={() => downloadReceiptFile(modal.receipt, t.billing)}
+              >
+                <Download size={16} />
+                {t.billing.downloadReceipt}
+              </button>
+              <button
+                type="button"
+                className="button primary"
+                onClick={() => {
+                  void shareReceiptFile(modal.receipt, t.billing);
+                }}
+              >
+                <Share2 size={16} />
+                {t.billing.shareReceipt}
+              </button>
+            </>
+          }
+        >
+          <div className="fleet-modal-details receipt-preview">
+            <div className="summary-row">
+              <span>{t.billing.receiptNumber}</span>
+              <strong>{modal.receipt.id}</strong>
+            </div>
+            <div className="summary-row">
+              <span>{t.billing.company}</span>
+              <strong>{modal.receipt.companyName}</strong>
+            </div>
+            <div className="summary-row">
+              <span>{t.billing.invoice}</span>
+              <strong>{modal.receipt.invoiceNumber}</strong>
+            </div>
+            <div className="summary-row">
+              <span>{t.billing.customer}</span>
+              <strong>{modal.receipt.customer}</strong>
+            </div>
+            <div className="summary-row">
+              <span>{t.billing.method}</span>
+              <strong>{modal.receipt.method}</strong>
+            </div>
+            <div className="summary-row">
+              <span>{t.billing.issueDate}</span>
+              <strong>{modal.receipt.paidAtLabel}</strong>
+            </div>
+            <div className="summary-row">
+              <span>{t.billing.paid}</span>
+              <strong>{formatMoney(modal.receipt.amountPaid, language)}</strong>
+            </div>
+            <div className="summary-row">
+              <span>{t.billing.balance}</span>
+              <strong>{formatMoney(modal.receipt.balance, language)}</strong>
+            </div>
+            <p className="receipt-thanks">{t.billing.thankYou}</p>
           </div>
         </Modal>
       ) : null}

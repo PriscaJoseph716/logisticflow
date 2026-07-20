@@ -1235,23 +1235,31 @@ function ConfirmDialog({
   );
 }
 
-function Modal({ title, children, onClose, onSave, saveLabel = "Save", cancelLabel = "Cancel" }) {
+function Modal({
+  title,
+  children,
+  onClose,
+  onSave,
+  saveLabel = "Save",
+  cancelLabel = "Cancel",
+  saving = false,
+}) {
   return (
-    <div className="modal-backdrop" role="presentation" onClick={onClose}>
+    <div className="modal-backdrop" role="presentation" onClick={saving ? undefined : onClose}>
       <div className="modal-card glass-elevated" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
         <div className="modal-header">
           <h3>{title}</h3>
-          <button type="button" className="icon-button muted" onClick={onClose}>
+          <button type="button" className="icon-button muted" onClick={onClose} disabled={saving}>
             <X size={16} />
           </button>
         </div>
         <div className="modal-body">{children}</div>
         <div className="modal-footer">
-          <button type="button" className="button secondary" onClick={onClose}>
+          <button type="button" className="button secondary" onClick={onClose} disabled={saving}>
             {cancelLabel}
           </button>
-          <button type="button" className="button primary" onClick={onSave}>
-            {saveLabel}
+          <button type="button" className="button primary" onClick={onSave} disabled={saving}>
+            {saving ? (saveLabel === "Hifadhi" || saveLabel === "Hifadhi Mabadiliko" ? "Inahifadhi..." : "Saving...") : saveLabel}
           </button>
         </div>
       </div>
@@ -1306,6 +1314,7 @@ function App() {
   const [createdWorkerCreds, setCreatedWorkerCreds] = useState(null);
   const [pageLoading, setPageLoading] = useState(false);
   const [fileUploading, setFileUploading] = useState(false);
+  const [modalSaving, setModalSaving] = useState(false);
   const [appData, setAppData] = useState(emptyAppData);
   const [toast, setToast] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState(null);
@@ -1972,6 +1981,7 @@ function App() {
     setModal({ type: null });
     setModalForm({});
     setFleetDetailsTab("overview");
+    setModalSaving(false);
   };
 
   const showToast = (message, type = "success") => {
@@ -2190,15 +2200,16 @@ function App() {
       const valueAt = (index) =>
         results[index].status === "fulfilled" ? results[index].value : null;
 
-      const failed = results.filter((result) => result.status === "rejected");
-      if (failed.length > 0 && !silent) {
-        const firstMessage = getApiErrorMessage(
-          failed[0].reason,
+      // Only warn when core modules all fail — never surface partial/optional API noise.
+      const criticalIndexes = [0, 1, 2, 3, 4, 5, 6];
+      const criticalAllFailed = criticalIndexes.every((index) => results[index].status === "rejected");
+      if (criticalAllFailed && !silent) {
+        showToast(
           language === "sw"
-            ? "Baadhi ya taarifa hazikuweza kupakiwa."
-            : "Some of your data could not be loaded.",
+            ? "Imeshindikana kupakia taarifa zako. Jaribu tena."
+            : "Unable to load your data. Please try again.",
+          "error",
         );
-        showToast(firstMessage, "error");
       }
 
       const notifications = asItems(valueAt(7)).map(mapNotificationRecord);
@@ -2432,17 +2443,27 @@ function App() {
     }));
   };
 
+  const refreshAfterSave = () => {
+    void loadAppData({ silent: true });
+  };
+
   const handleModalSave = async () => {
+    if (modalSaving) return;
+
     if (modal.type === "fleet") {
       if (!modalForm.headPlate || !modalForm.trailerPlate || !modalForm.driver || !modalForm.driverPhone || !modalForm.licenseNumber) {
         showToast(t.toast.fillFleet, "error");
         return;
       }
 
+      setModalSaving(true);
       try {
         const existingVehicle = appData.fleet.find((item) => item.id === modal.vehicleId);
+        const existingDocs = existingVehicle?.raw?.documentsJson;
         const documentsJson = {
-          ...(existingVehicle?.raw?.documentsJson ?? {}),
+          ...(existingDocs && typeof existingDocs === "object" && !Array.isArray(existingDocs)
+            ? existingDocs
+            : {}),
           ownership: modalForm.ownership,
           driverName: modalForm.driver,
           driverPhone: modalForm.driverPhone,
@@ -2455,7 +2476,7 @@ function App() {
           trailerPlateNumber: modalForm.trailerPlate || null,
           vehicleType: existingVehicle?.vehicleType ?? "Truck",
           category: modalForm.ownership ?? "owned",
-          status: existingVehicle?.status?.toUpperCase?.() ?? "ACTIVE",
+          status: String(existingVehicle?.status ?? "ACTIVE").toUpperCase(),
           mileage: Number(existingVehicle?.mileage ?? 0),
           fuelLevel: Number(existingVehicle?.fuelLevel ?? 0),
           fuelType: existingVehicle?.fuelType ?? "",
@@ -2466,18 +2487,26 @@ function App() {
 
         if (modal.mode === "edit" && modal.vehicleId) {
           await fleetApi.update(modal.vehicleId, payload);
-          await loadAppData({ silent: true });
           closeModal();
           showToast(t.toast.fleetUpdated);
+          refreshAfterSave();
           return;
         }
 
         await fleetApi.create(payload);
-        await loadAppData({ silent: true });
         closeModal();
         showToast(t.toast.fleetAdded);
+        refreshAfterSave();
       } catch (error) {
-        showToast(getApiErrorMessage(error, "Unable to save vehicle."), "error");
+        showToast(
+          getApiErrorMessage(
+            error,
+            language === "sw" ? "Imeshindikana kuhifadhi gari." : "Unable to save vehicle. Please try again.",
+          ),
+          "error",
+        );
+      } finally {
+        setModalSaving(false);
       }
       return;
     }
@@ -2491,6 +2520,7 @@ function App() {
         return;
       }
 
+      setModalSaving(true);
       try {
         const vehicle = appData.fleet.find((item) => getVehiclePrimaryPlate(item) === modalForm.vehicle);
         await shipmentsApi.create({
@@ -2505,11 +2535,19 @@ function App() {
           deliveryStatus: "SCHEDULED",
           scheduledDate: new Date().toISOString(),
         });
-        await loadAppData({ silent: true });
         closeModal();
         showToast(t.toast.shipmentCreated);
+        refreshAfterSave();
       } catch (error) {
-        showToast(getApiErrorMessage(error, "Unable to create shipment."), "error");
+        showToast(
+          getApiErrorMessage(
+            error,
+            language === "sw" ? "Imeshindikana kutengeneza mzigo." : "Unable to create shipment. Please try again.",
+          ),
+          "error",
+        );
+      } finally {
+        setModalSaving(false);
       }
       return;
     }
@@ -2520,6 +2558,7 @@ function App() {
         return;
       }
 
+      setModalSaving(true);
       try {
         const payload = {
           customerCode: modal.mode === "edit" ? modalForm.id : generateNextCustomerId(appData.customers),
@@ -2533,18 +2572,26 @@ function App() {
 
         if (modal.mode === "edit" && modal.customerId) {
           await customersApi.update(modal.customerId, payload);
-          await loadAppData({ silent: true });
           closeModal();
           showToast(t.toast.customerUpdated);
+          refreshAfterSave();
           return;
         }
 
         await customersApi.create(payload);
-        await loadAppData({ silent: true });
         closeModal();
         showToast(t.toast.customerAdded);
+        refreshAfterSave();
       } catch (error) {
-        showToast(getApiErrorMessage(error, "Unable to save customer."), "error");
+        showToast(
+          getApiErrorMessage(
+            error,
+            language === "sw" ? "Imeshindikana kuhifadhi mteja." : "Unable to save customer. Please try again.",
+          ),
+          "error",
+        );
+      } finally {
+        setModalSaving(false);
       }
       return;
     }
@@ -2555,6 +2602,7 @@ function App() {
         return;
       }
 
+      setModalSaving(true);
       try {
         const payload = {
           supplierCode: modal.mode === "edit" ? modalForm.id : generateNextSupplierId(appData.suppliers),
@@ -2567,18 +2615,26 @@ function App() {
 
         if (modal.mode === "edit" && modal.supplierId) {
           await suppliersApi.update(modal.supplierId, payload);
-          await loadAppData({ silent: true });
           closeModal();
           showToast(t.toast.supplierUpdated);
+          refreshAfterSave();
           return;
         }
 
         await suppliersApi.create(payload);
-        await loadAppData({ silent: true });
         closeModal();
         showToast(t.toast.supplierAdded);
+        refreshAfterSave();
       } catch (error) {
-        showToast(getApiErrorMessage(error, "Unable to save supplier."), "error");
+        showToast(
+          getApiErrorMessage(
+            error,
+            language === "sw" ? "Imeshindikana kuhifadhi msambazaji." : "Unable to save supplier. Please try again.",
+          ),
+          "error",
+        );
+      } finally {
+        setModalSaving(false);
       }
       return;
     }
@@ -2589,6 +2645,7 @@ function App() {
         return;
       }
 
+      setModalSaving(true);
       try {
         const payload = {
           vehicleId: modalForm.vehicleId,
@@ -2633,11 +2690,21 @@ function App() {
           await maintenanceApi.create(payload);
         }
 
-        await loadAppData({ silent: true });
         closeModal();
         showToast(modal.mode === "edit" ? t.toast.maintenanceUpdated : t.toast.maintenanceSaved);
+        refreshAfterSave();
       } catch (error) {
-        showToast(getApiErrorMessage(error, "Unable to save maintenance record."), "error");
+        showToast(
+          getApiErrorMessage(
+            error,
+            language === "sw"
+              ? "Imeshindikana kuhifadhi rekodi ya matengenezo."
+              : "Unable to save maintenance record. Please try again.",
+          ),
+          "error",
+        );
+      } finally {
+        setModalSaving(false);
       }
       return;
     }
@@ -2649,13 +2716,19 @@ function App() {
         return;
       }
 
+      setModalSaving(true);
       try {
         const targetInvoice = appData.payments.find(
           (payment) => payment.customer === modalForm.customer && payment.paid < payment.total,
         );
 
         if (!targetInvoice) {
-          showToast("No outstanding invoice found for this customer.", "error");
+          showToast(
+            language === "sw"
+              ? "Hakuna ankara inayosubiri malipo kwa mteja huyu."
+              : "No outstanding invoice found for this customer.",
+            "error",
+          );
           return;
         }
 
@@ -2667,11 +2740,19 @@ function App() {
           method: "BANK_TRANSFER",
           status: "COMPLETED",
         });
-        await loadAppData({ silent: true });
         closeModal();
         showToast(t.toast.paymentRecorded);
+        refreshAfterSave();
       } catch (error) {
-        showToast(getApiErrorMessage(error, "Unable to record payment."), "error");
+        showToast(
+          getApiErrorMessage(
+            error,
+            language === "sw" ? "Imeshindikana kuhifadhi malipo." : "Unable to record payment. Please try again.",
+          ),
+          "error",
+        );
+      } finally {
+        setModalSaving(false);
       }
     }
   };
@@ -4483,6 +4564,7 @@ function App() {
           title={modal.mode === "edit" ? t.modal.editVehicle : t.modal.addVehicle}
           onClose={closeModal}
           onSave={handleModalSave}
+          saving={modalSaving}
           saveLabel={modal.mode === "edit" ? t.common.edit : t.common.save}
           cancelLabel={t.common.cancel}
         >
@@ -4756,7 +4838,7 @@ function App() {
       ) : null}
 
       {modal.type === "shipment" ? (
-        <Modal title={t.modal.createShipment} onClose={closeModal} onSave={handleModalSave} saveLabel={t.common.save} cancelLabel={t.common.cancel}>
+        <Modal title={t.modal.createShipment} onClose={closeModal} onSave={handleModalSave} saving={modalSaving} saveLabel={t.common.save} cancelLabel={t.common.cancel}>
           <div className="form-grid single">
             <label>
               {t.shipments.supplier}
@@ -4802,6 +4884,7 @@ function App() {
           title={modal.mode === "edit" ? t.modal.editCustomer : t.modal.addCustomer}
           onClose={closeModal}
           onSave={handleModalSave}
+          saving={modalSaving}
           saveLabel={modal.mode === "edit" ? t.common.edit : t.common.save}
           cancelLabel={t.common.cancel}
         >
@@ -4833,6 +4916,7 @@ function App() {
           title={modal.mode === "edit" ? t.modal.editSupplier : t.modal.addSupplier}
           onClose={closeModal}
           onSave={handleModalSave}
+          saving={modalSaving}
           saveLabel={modal.mode === "edit" ? t.common.edit : t.common.save}
           cancelLabel={t.common.cancel}
         >
@@ -4868,7 +4952,7 @@ function App() {
       ) : null}
 
       {modal.type === "payment" ? (
-        <Modal title={t.modal.recordPayment} onClose={closeModal} onSave={handleModalSave} saveLabel={t.common.save} cancelLabel={t.common.cancel}>
+        <Modal title={t.modal.recordPayment} onClose={closeModal} onSave={handleModalSave} saving={modalSaving} saveLabel={t.common.save} cancelLabel={t.common.cancel}>
           <div className="form-grid single">
             <label>
               {t.modal.customer}
@@ -4893,6 +4977,7 @@ function App() {
           title={modal.mode === "edit" ? t.common.edit : t.maintenance.addMaintenance}
           onClose={closeModal}
           onSave={handleModalSave}
+          saving={modalSaving}
           saveLabel={t.maintenance.saveRecord}
           cancelLabel={t.common.cancel}
         >

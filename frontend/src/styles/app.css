@@ -674,9 +674,11 @@ textarea {
   flex-shrink: 0;
 }
 
-.button:hover,
-.icon-button:hover {
-  transform: translateY(-1px);
+.button:disabled,
+.icon-button:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  transform: none;
 }
 
 .button.primary {

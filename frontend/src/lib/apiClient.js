@@ -39,21 +39,54 @@ function wait(ms) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
-function shouldRetry(error, config) {
-  if (!config || config.method?.toLowerCase() !== "get") {
-    return false;
-  }
+function isNetworkOrTimeoutError(error) {
+  return Boolean(
+    axios.isAxiosError(error) &&
+      !error.response &&
+      (error.code === "ECONNABORTED" ||
+        error.code === "ERR_NETWORK" ||
+        error.message === "Network Error"),
+  );
+}
 
-  if (error.response) {
-    return false;
-  }
+function shouldRetry(error, config) {
+  if (!config) return false;
 
   const retryCount = config.__retryCount ?? 0;
-  return retryCount < 1;
+  if (retryCount >= 1) return false;
+
+  // Retry once on cold-start / flaky network for any method.
+  if (isNetworkOrTimeoutError(error)) return true;
+
+  // Retry GET once on 502/503/504 (Render waking up).
+  if (config.method?.toLowerCase() === "get" && [502, 503, 504].includes(error.response?.status)) {
+    return true;
+  }
+
+  return false;
 }
 
 function isAuthRoute(url = "") {
   return url.includes("/auth/login") || url.includes("/auth/register") || url.includes("/auth/logout");
+}
+
+function looksTechnical(message = "") {
+  const text = String(message).toLowerCase();
+  return (
+    text.includes("cannot read properties") ||
+    text.includes("reading 'trim'") ||
+    text.includes("undefined is not") ||
+    text.includes("null is not") ||
+    text.includes("prisma") ||
+    text.includes("econn") ||
+    text.includes("socket") ||
+    text.includes("stack") ||
+    text.includes("typeerror") ||
+    text.includes("referenceerror") ||
+    text.includes("unique constraint") ||
+    text.includes("internal server error") ||
+    /at\s+\w+\s+\(/.test(message)
+  );
 }
 
 export function getSession() {
@@ -113,7 +146,7 @@ api.interceptors.response.use(
 
     if (shouldRetry(error, originalRequest)) {
       originalRequest.__retryCount = (originalRequest.__retryCount ?? 0) + 1;
-      await wait(600);
+      await wait(800);
       return api(originalRequest);
     }
 
@@ -121,17 +154,23 @@ api.interceptors.response.use(
   },
 );
 
-export function getApiErrorMessage(error, fallback = "Something went wrong.") {
+export function getApiErrorMessage(error, fallback = "Something went wrong. Please try again.") {
   if (axios.isAxiosError(error)) {
-    if (!error.response && (error.code === "ECONNABORTED" || error.message === "Network Error")) {
+    if (isNetworkOrTimeoutError(error)) {
       return "We couldn't connect right now. Please wait a moment and try again.";
     }
 
-    return error.response?.data?.message ?? error.message ?? fallback;
+    const serverMessage = error.response?.data?.message;
+    if (typeof serverMessage === "string" && serverMessage.trim() && !looksTechnical(serverMessage)) {
+      return serverMessage;
+    }
+
+    return fallback;
   }
 
   if (error instanceof Error) {
-    return error.message;
+    if (looksTechnical(error.message)) return fallback;
+    return error.message || fallback;
   }
 
   return fallback;

@@ -131,9 +131,11 @@ const translations = {
       swahili: "Swahili",
       all: "All",
       today: "Today",
+      yesterday: "Yesterday",
       thisWeek: "This Week",
       thisMonth: "This Month",
       byDate: "By Date",
+      customRange: "Custom range",
       date: "Date",
       cleared: "Cleared",
       fullyPaid: "Fully paid",
@@ -151,6 +153,7 @@ const translations = {
       exportCsv: "Export CSV",
       from: "From",
       to: "To",
+      filter: "Filter",
       status: "Status",
       notes: "Notes",
       total: "Total",
@@ -199,8 +202,9 @@ const translations = {
       revenueCollected: "Collected Revenue",
       outstanding: "Outstanding",
       activeFleet: "Active Fleet",
+      filterLabel: "Period",
       operationsTitle: "Operations Overview",
-      operationsText: "A simple summary of what the team needs to focus on today.",
+      operationsText: "A simple summary of what the team needs to focus on for the selected period.",
       completedRuns: "Completed deliveries",
       transitRuns: "Deliveries in transit",
       pendingRuns: "Pending dispatch",
@@ -552,9 +556,11 @@ const translations = {
       swahili: "Kiswahili",
       all: "Zote",
       today: "Leo",
+      yesterday: "Jana",
       thisWeek: "Wiki hii",
       thisMonth: "Mwezi huu",
       byDate: "Kwa tarehe",
+      customRange: "Kipindi maalum",
       date: "Tarehe",
       cleared: "Imelipwa",
       fullyPaid: "Imelipwa yote",
@@ -572,6 +578,7 @@ const translations = {
       exportCsv: "Pakua CSV",
       from: "Kuanzia",
       to: "Mpaka",
+      filter: "Chuja",
       status: "Hali",
       notes: "Maelezo",
       total: "Jumla",
@@ -620,8 +627,9 @@ const translations = {
       revenueCollected: "Mapato Yaliyokusanywa",
       outstanding: "Deni Lililobaki",
       activeFleet: "Magari Hai",
+      filterLabel: "Kipindi",
       operationsTitle: "Muhtasari wa Uendeshaji",
-      operationsText: "Muhtasari rahisi wa mambo muhimu ya kufuatilia leo.",
+      operationsText: "Muhtasari rahisi wa mambo muhimu ya kufuatilia kwa kipindi ulichochagua.",
       completedRuns: "Uwasilishaji uliokamilika",
       transitRuns: "Uwasilishaji ulioko njiani",
       pendingRuns: "Dispatch zinazosubiri",
@@ -921,8 +929,10 @@ const translations = {
 };
 
 function formatMoney(value, language = "en") {
+  const amount = Number(value);
+  const safeAmount = Number.isFinite(amount) ? amount : 0;
   const locale = language === "sw" ? "sw-TZ" : "en-TZ";
-  return `TSh ${new Intl.NumberFormat(locale).format(value)}`;
+  return `TSh ${new Intl.NumberFormat(locale).format(safeAmount)}`;
 }
 
 function statusTone(status) {
@@ -1081,8 +1091,23 @@ function downloadFileBlob(filename, blob) {
   URL.revokeObjectURL(url);
 }
 
-function isDateInRange(dateValue, filter, selectedDate) {
+function toDateKey(dateValue) {
+  if (!dateValue) return "";
+  const raw = String(dateValue);
+  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
   const date = new Date(dateValue);
+  if (Number.isNaN(date.getTime())) return "";
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function isDateInRange(dateValue, filter, selectedDate, customRange = {}) {
+  const dateKey = toDateKey(dateValue);
+  if (!dateKey) return false;
+
+  const date = new Date(`${dateKey}T12:00:00`);
   const now = new Date();
 
   if (Number.isNaN(date.getTime())) return false;
@@ -1093,6 +1118,12 @@ function isDateInRange(dateValue, filter, selectedDate) {
 
   if (filter === "today") {
     return date.toDateString() === now.toDateString();
+  }
+
+  if (filter === "yesterday") {
+    const yesterday = new Date(now);
+    yesterday.setDate(now.getDate() - 1);
+    return date.toDateString() === yesterday.toDateString();
   }
 
   if (filter === "week") {
@@ -1111,7 +1142,16 @@ function isDateInRange(dateValue, filter, selectedDate) {
   }
 
   if (filter === "date") {
-    return selectedDate ? dateValue === selectedDate : true;
+    return selectedDate ? dateKey === selectedDate : true;
+  }
+
+  if (filter === "custom") {
+    const from = customRange.from || "";
+    const to = customRange.to || "";
+    if (!from && !to) return true;
+    if (from && dateKey < from) return false;
+    if (to && dateKey > to) return false;
+    return true;
   }
 
   return true;
@@ -1320,6 +1360,9 @@ function App() {
   const [confirmDialog, setConfirmDialog] = useState(null);
   const [deliveryFilter, setDeliveryFilter] = useState("month");
   const [deliveryDate, setDeliveryDate] = useState("");
+  const [dashboardFilter, setDashboardFilter] = useState("today");
+  const [dashboardCustomFrom, setDashboardCustomFrom] = useState("");
+  const [dashboardCustomTo, setDashboardCustomTo] = useState("");
   const [fleetFilter, setFleetFilter] = useState("all");
   const [fleetDetailsTab, setFleetDetailsTab] = useState("overview");
   const [maintenanceFilters, setMaintenanceFilters] = useState({
@@ -1347,16 +1390,62 @@ function App() {
   const [modalForm, setModalForm] = useState({});
   const t = translations[language];
   const searchValue = pageSearch[currentPage] ?? "";
-  const dashboardSummary = appData.dashboardSummary ?? {
-    todayRevenue: 0,
-    todayDeliveries: 0,
-    vehicles: 0,
-    drivers: 0,
-    customers: 0,
-    maintenanceDue: 0,
-    outstandingPayments: 0,
-    revenueTrend: [],
-  };
+  const dashboardSummary = appData.dashboardSummary ?? {};
+
+  const dashboardMetrics = useMemo(() => {
+    const customRange = { from: dashboardCustomFrom, to: dashboardCustomTo };
+    const inRange = (dateValue) => isDateInRange(dateValue, dashboardFilter, "", customRange);
+    const money = (value) => {
+      const amount = Number(value);
+      return Number.isFinite(amount) ? amount : 0;
+    };
+
+    const paymentsInRange = appData.payments.filter((item) => inRange(item.date));
+    const shipmentsInRange = appData.shipments.filter((item) => inRange(item.date));
+    const deliveriesInRange = appData.deliveries.filter((item) => inRange(item.date));
+
+    const revenue = paymentsInRange.reduce((sum, item) => sum + money(item.paid), 0);
+    const outstanding = appData.payments.reduce(
+      (sum, item) => sum + Math.max(0, money(item.total) - money(item.paid)),
+      0,
+    );
+    const deliveredCount = Math.max(
+      deliveriesInRange.length,
+      shipmentsInRange.filter((item) => item.status === "delivered").length,
+    );
+    const transitCount = shipmentsInRange.filter((item) => item.status === "transit").length;
+    const pendingCount = shipmentsInRange.filter((item) => item.status === "pending").length;
+    const activeFleet = appData.fleet.filter((item) => item.status === "active").length;
+    const totalFleet = appData.fleet.length || Number(dashboardSummary.vehicles) || 0;
+    const customers =
+      Number(dashboardSummary.customers) ||
+      appData.customers.length ||
+      0;
+
+    return {
+      deliveries: deliveredCount,
+      revenue,
+      outstanding,
+      activeFleet,
+      totalFleet,
+      customers,
+      deliveredCount,
+      transitCount,
+      pendingCount,
+    };
+  }, [
+    appData.payments,
+    appData.shipments,
+    appData.deliveries,
+    appData.fleet,
+    appData.customers.length,
+    dashboardFilter,
+    dashboardCustomFrom,
+    dashboardCustomTo,
+    dashboardSummary.vehicles,
+    dashboardSummary.customers,
+  ]);
+
   const maintenancePermissions = useMemo(
     () => new Set(authSession?.user?.permissions ?? []),
     [authSession],
@@ -1402,14 +1491,21 @@ function App() {
   }, []);
 
   const totals = useMemo(() => {
-    const revenue = appData.payments.reduce((sum, item) => sum + item.paid, 0);
-    const outstanding = appData.payments.reduce((sum, item) => sum + (item.total - item.paid), 0);
+    const money = (value) => {
+      const amount = Number(value);
+      return Number.isFinite(amount) ? amount : 0;
+    };
+    const revenue = appData.payments.reduce((sum, item) => sum + money(item.paid), 0);
+    const outstanding = appData.payments.reduce(
+      (sum, item) => sum + Math.max(0, money(item.total) - money(item.paid)),
+      0,
+    );
     const deliveries = appData.shipments.filter((item) => item.status === "delivered").length;
     const activeFleet = appData.fleet.filter((item) => item.status === "active").length;
     const deliveredCount = appData.shipments.filter((item) => item.status === "delivered").length;
     const transitCount = appData.shipments.filter((item) => item.status === "transit").length;
     const pendingCount = appData.shipments.filter((item) => item.status === "pending").length;
-    const clearedCustomers = appData.payments.filter((item) => item.paid >= item.total).length;
+    const clearedCustomers = appData.payments.filter((item) => money(item.paid) >= money(item.total)).length;
 
     return {
       revenue,
@@ -3078,6 +3174,40 @@ function App() {
           <p>{t.dashboard.intro}</p>
         </div>
         <div className="header-actions">
+          <label className="language-picker compact">
+            <span>{t.dashboard.filterLabel ?? t.common.filter}</span>
+            <select
+              value={dashboardFilter}
+              onChange={(event) => setDashboardFilter(event.target.value)}
+            >
+              <option value="today">{t.common.today}</option>
+              <option value="yesterday">{t.common.yesterday}</option>
+              <option value="week">{t.common.thisWeek}</option>
+              <option value="month">{t.common.thisMonth}</option>
+              <option value="custom">{t.common.customRange}</option>
+            </select>
+          </label>
+          {dashboardFilter === "custom" ? (
+            <>
+              <label className="language-picker compact">
+                <span>{t.common.from}</span>
+                <input
+                  type="date"
+                  value={dashboardCustomFrom}
+                  onChange={(event) => setDashboardCustomFrom(event.target.value)}
+                />
+              </label>
+              <label className="language-picker compact">
+                <span>{t.common.to}</span>
+                <input
+                  type="date"
+                  value={dashboardCustomTo}
+                  min={dashboardCustomFrom || undefined}
+                  onChange={(event) => setDashboardCustomTo(event.target.value)}
+                />
+              </label>
+            </>
+          ) : null}
           <SearchBox
             label={t.common.search}
             value={pageSearch.dashboard}
@@ -3094,10 +3224,15 @@ function App() {
       </section>
 
       <section className="stats-grid">
-        <StatCard label={t.dashboard.totalDeliveries} value={dashboardSummary.todayDeliveries} icon={Truck} tone="brand" />
-        <StatCard label={t.dashboard.revenueCollected} value={formatMoney(dashboardSummary.todayRevenue, language)} icon={TrendingUp} tone="green" />
-        <StatCard label={t.dashboard.outstanding} value={formatMoney(dashboardSummary.outstandingPayments, language)} icon={Clock3} tone="amber" />
-        <StatCard label={t.dashboard.activeFleet} value={`${appData.fleet.filter((item) => item.status === "active").length}/${dashboardSummary.vehicles}`} icon={Zap} tone="brand" />
+        <StatCard label={t.dashboard.totalDeliveries} value={dashboardMetrics.deliveries} icon={Truck} tone="brand" />
+        <StatCard label={t.dashboard.revenueCollected} value={formatMoney(dashboardMetrics.revenue, language)} icon={TrendingUp} tone="green" />
+        <StatCard label={t.dashboard.outstanding} value={formatMoney(dashboardMetrics.outstanding, language)} icon={Clock3} tone="amber" />
+        <StatCard
+          label={t.dashboard.activeFleet}
+          value={`${dashboardMetrics.activeFleet}/${dashboardMetrics.totalFleet}`}
+          icon={Zap}
+          tone="brand"
+        />
       </section>
 
       <section className="feature-grid">
@@ -3111,19 +3246,19 @@ function App() {
           <div className="summary-list">
             <div className="summary-row">
               <span>{t.dashboard.completedRuns}</span>
-              <strong>{totals.deliveredCount}</strong>
+              <strong>{dashboardMetrics.deliveredCount}</strong>
             </div>
             <div className="summary-row">
               <span>{t.dashboard.transitRuns}</span>
-              <strong>{totals.transitCount}</strong>
+              <strong>{dashboardMetrics.transitCount}</strong>
             </div>
             <div className="summary-row">
               <span>{t.dashboard.pendingRuns}</span>
-              <strong>{totals.pendingCount}</strong>
+              <strong>{dashboardMetrics.pendingCount}</strong>
             </div>
             <div className="summary-row">
               <span>{t.dashboard.activeCustomers}</span>
-              <strong>{dashboardSummary.customers}</strong>
+              <strong>{dashboardMetrics.customers}</strong>
             </div>
           </div>
         </div>

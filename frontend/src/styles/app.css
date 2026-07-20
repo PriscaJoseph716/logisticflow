@@ -1896,9 +1896,9 @@ textarea {
   background: #ecfdf5;
 }
 
-.saas-receipt-badge.partial {
-  color: #d97706;
-  background: #fffbeb;
+.saas-receipt-badge.open {
+  color: var(--blue-deep);
+  background: var(--blue-soft);
 }
 
 .saas-receipt-hero {

@@ -167,6 +167,14 @@ export function mapMaintenanceRecord(record) {
 }
 
 export function mapInvoiceToPaymentCard(record) {
+  const paymentRecords = (record.payments ?? []).map((payment) => ({
+    id: payment.id,
+    amount: payment.amount ?? 0,
+    method: payment.method ?? "CASH",
+    paidAt: payment.paidAt ?? payment.createdAt ?? null,
+    note: payment.note ?? "",
+  }));
+
   return {
     id: record.id,
     invoiceNumber: record.invoiceNumber,
@@ -177,6 +185,7 @@ export function mapInvoiceToPaymentCard(record) {
     date: toDateInput(record.issueDate),
     dueDate: toDateInput(record.dueDate),
     status: fromEnum(record.status),
+    paymentRecords,
     raw: record,
   };
 }

@@ -45,6 +45,17 @@ import MobileNav from "./components/MobileNav";
 import BootSplash from "./components/auth/BootSplash";
 import SignUpPage from "./components/auth/SignUpPage";
 import { emptyAppData, navigation } from "./data/appConfig";
+import {
+  buildBillDocument,
+  buildPaymentReceipt,
+  buildReceiptFromInvoice,
+  downloadBillingDocument,
+  formatPaymentMethodLabel,
+  formatReceiptMoney,
+  invoiceBalance,
+  moneyValue,
+  shareBillingDocument,
+} from "./lib/billingDocuments";
 import { configureApiClient, getApiErrorMessage, getSession, setSession as persistSession, clearSession as clearPersistedSession } from "./lib/apiClient";
 import {
   assignmentsApi,
@@ -422,6 +433,13 @@ const translations = {
       methodCash: "Cash",
       methodMobile: "Mobile money",
       methodCard: "Card",
+      viewReceipt: "View receipt",
+      downloadBill: "Download bill",
+      shareBill: "Share bill",
+      amountDue: "Amount due",
+      billServiceLine: "Logistics services for invoice",
+      billOpen: "Bill issued",
+      noReceiptYet: "No receipt yet. Record a payment first.",
     },
     reports: {
       intro: "Analytics for collections, shipment volume, and outstanding balances.",
@@ -888,6 +906,13 @@ const translations = {
       methodCash: "Fedha taslimu",
       methodMobile: "Pesa simu",
       methodCard: "Kadi",
+      viewReceipt: "Tazama risiti",
+      downloadBill: "Pakua ankara",
+      shareBill: "Shiriki ankara",
+      amountDue: "Kiasi kinachodaiwa",
+      billServiceLine: "Huduma za usafirishaji kwa ankara",
+      billOpen: "Ankara imetolewa",
+      noReceiptYet: "Hakuna risiti bado. Rekodi malipo kwanza.",
     },
     reports: {
       intro: "Ripoti za makusanyo, idadi ya mizigo na salio lililobaki.",
@@ -1023,10 +1048,6 @@ function statusTone(status) {
   if (status === "transit" || status === "inProgress" || status === "partial") return "blue";
   if (status === "maintenance" || status === "cancelled" || status === "overdue") return "red";
   return "amber";
-}
-
-function invoiceBalance(invoice) {
-  return Math.max(0, moneyValue(invoice?.total) - moneyValue(invoice?.paid));
 }
 
 function invoiceDisplayStatus(invoice) {
@@ -1183,418 +1204,6 @@ function downloadFileBlob(filename, blob) {
   URL.revokeObjectURL(url);
 }
 
-function moneyValue(value) {
-  const amount = Number(value);
-  return Number.isFinite(amount) ? amount : 0;
-}
-
-function downloadReceiptFile(receipt, labels) {
-  downloadBlob(`${receipt.id}.html`, receiptHtml(receipt, labels), "text/html");
-}
-
-function escapeHtml(value) {
-  return String(value ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
-}
-
-function formatReceiptMoney(value) {
-  return `TSh ${Number(moneyValue(value)).toLocaleString("en-TZ")}`;
-}
-
-function formatPaymentMethodLabel(method, labels = {}) {
-  const key = String(method || "").toUpperCase();
-  if (key === "BANK_TRANSFER") return labels.methodBank || "Bank transfer";
-  if (key === "CASH") return labels.methodCash || "Cash";
-  if (key === "MOBILE_MONEY" || key === "MPESA") return labels.methodMobile || "Mobile money";
-  if (key === "CARD") return labels.methodCard || "Card";
-  return String(method || "—").replaceAll("_", " ");
-}
-
-function buildPaymentReceipt({
-  invoice,
-  amountPaid,
-  business,
-  method = "BANK_TRANSFER",
-  paidAt = new Date(),
-}) {
-  const total = moneyValue(invoice.total);
-  const previouslyPaid = moneyValue(invoice.paid);
-  const paidNow = moneyValue(amountPaid);
-  const paid = previouslyPaid + paidNow;
-  const balance = Math.max(0, total - paid);
-  const stamp = paidAt instanceof Date ? paidAt : new Date(paidAt);
-
-  return {
-    id: `RCP-${Date.now().toString().slice(-8)}`,
-    invoiceId: invoice.id,
-    invoiceNumber: invoice.invoiceNumber ?? invoice.id,
-    customer: invoice.customer ?? "Customer",
-    customerId: invoice.customerId ?? "",
-    companyName: business?.companyName || business?.name || "LogisticsFlow",
-    businessId: business?.businessId || "",
-    issueDate: invoice.date ?? "",
-    dueDate: invoice.dueDate ?? "",
-    method,
-    paidAt: stamp.toISOString(),
-    paidAtLabel: stamp.toLocaleString(undefined, {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    }),
-    amountPaid: paidNow,
-    previouslyPaid,
-    total,
-    paid,
-    balance,
-    status: balance <= 0 ? "paid" : "partial",
-  };
-}
-
-function receiptHtml(receipt, labels) {
-  const company = escapeHtml(receipt.companyName);
-  const businessId = escapeHtml(receipt.businessId);
-  const receiptId = escapeHtml(receipt.id);
-  const invoiceNumber = escapeHtml(receipt.invoiceNumber);
-  const customer = escapeHtml(receipt.customer);
-  const method = escapeHtml(formatPaymentMethodLabel(receipt.method, labels));
-  const paidAt = escapeHtml(receipt.paidAtLabel);
-  const statusText = escapeHtml(
-    receipt.status === "paid" ? labels.paymentSuccessful : labels.paymentPartial,
-  );
-  const statusClass = receipt.status === "paid" ? "ok" : "partial";
-  const amountPaid = escapeHtml(formatReceiptMoney(receipt.amountPaid));
-  const invoiceTotal = escapeHtml(formatReceiptMoney(receipt.total));
-  const paidTotal = escapeHtml(formatReceiptMoney(receipt.paid));
-  const balance = escapeHtml(formatReceiptMoney(receipt.balance));
-  const lineDesc = escapeHtml(`${labels.serviceLine} ${receipt.invoiceNumber}`);
-
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>${escapeHtml(labels.receiptTitle)} · ${receiptId}</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <style>
-    :root {
-      --ink: #0f172a;
-      --muted: #64748b;
-      --line: #e2e8f0;
-      --soft: #f8fafc;
-      --blue: #4f7cff;
-      --blue-deep: #2f5bff;
-      --ok: #059669;
-      --ok-bg: #ecfdf5;
-      --partial: #d97706;
-      --partial-bg: #fffbeb;
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      min-height: 100vh;
-      font-family: "Plus Jakarta Sans", system-ui, sans-serif;
-      color: var(--ink);
-      background:
-        radial-gradient(circle at top right, rgba(79,124,255,0.12), transparent 36%),
-        linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
-      padding: 40px 20px;
-    }
-    .page { max-width: 720px; margin: 0 auto; }
-    .sheet {
-      background: #fff;
-      border: 1px solid var(--line);
-      border-radius: 24px;
-      box-shadow: 0 24px 60px rgba(15, 23, 42, 0.08);
-      overflow: hidden;
-    }
-    .accent {
-      height: 6px;
-      background: linear-gradient(90deg, var(--blue), var(--blue-deep), #7aa0ff);
-    }
-    .content { padding: 36px 40px 32px; }
-    .top {
-      display: flex;
-      justify-content: space-between;
-      gap: 20px;
-      align-items: flex-start;
-      margin-bottom: 28px;
-    }
-    .brand {
-      display: flex;
-      gap: 14px;
-      align-items: center;
-    }
-    .mark {
-      width: 44px;
-      height: 44px;
-      border-radius: 14px;
-      display: grid;
-      place-items: center;
-      color: #fff;
-      font-weight: 800;
-      letter-spacing: -0.04em;
-      background: linear-gradient(135deg, var(--blue), var(--blue-deep));
-      box-shadow: 0 10px 24px rgba(47, 91, 255, 0.28);
-    }
-    .brand h1 {
-      margin: 0;
-      font-size: 1.15rem;
-      letter-spacing: -0.03em;
-    }
-    .brand p {
-      margin: 2px 0 0;
-      color: var(--muted);
-      font-size: 0.84rem;
-    }
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 12px;
-      border-radius: 999px;
-      font-size: 0.78rem;
-      font-weight: 700;
-      letter-spacing: 0.01em;
-    }
-    .badge.ok { color: var(--ok); background: var(--ok-bg); }
-    .badge.partial { color: var(--partial); background: var(--partial-bg); }
-    .badge::before {
-      content: "";
-      width: 7px;
-      height: 7px;
-      border-radius: 50%;
-      background: currentColor;
-    }
-    .hero {
-      padding: 22px 24px;
-      border-radius: 18px;
-      background:
-        linear-gradient(180deg, rgba(79,124,255,0.06), rgba(79,124,255,0.02)),
-        var(--soft);
-      border: 1px solid #e8eefc;
-      margin-bottom: 28px;
-    }
-    .hero-label {
-      margin: 0 0 6px;
-      color: var(--muted);
-      font-size: 0.8rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-    }
-    .hero-amount {
-      margin: 0;
-      font-size: clamp(2rem, 4vw, 2.6rem);
-      font-weight: 800;
-      letter-spacing: -0.04em;
-      color: var(--ink);
-    }
-    .hero-meta {
-      margin: 10px 0 0;
-      color: var(--muted);
-      font-size: 0.92rem;
-    }
-    .meta {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 14px 24px;
-      margin-bottom: 28px;
-    }
-    .meta-item span {
-      display: block;
-      color: var(--muted);
-      font-size: 0.78rem;
-      font-weight: 600;
-      margin-bottom: 4px;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-    }
-    .meta-item strong {
-      font-size: 0.98rem;
-      font-weight: 650;
-      letter-spacing: -0.01em;
-    }
-    .panel {
-      border: 1px solid var(--line);
-      border-radius: 16px;
-      overflow: hidden;
-      margin-bottom: 22px;
-    }
-    .panel-head {
-      padding: 14px 18px;
-      background: var(--soft);
-      border-bottom: 1px solid var(--line);
-      color: var(--muted);
-      font-size: 0.78rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-    }
-    .panel-body { padding: 16px 18px; }
-    .billed strong {
-      display: block;
-      font-size: 1rem;
-      margin-bottom: 2px;
-    }
-    .billed span { color: var(--muted); font-size: 0.9rem; }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-    }
-    th, td {
-      padding: 14px 18px;
-      text-align: left;
-      font-size: 0.94rem;
-    }
-    th {
-      color: var(--muted);
-      font-size: 0.75rem;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      background: var(--soft);
-      border-bottom: 1px solid var(--line);
-    }
-    td { border-bottom: 1px solid #f1f5f9; }
-    tr:last-child td { border-bottom: 0; }
-    .amount { text-align: right; font-variant-numeric: tabular-nums; font-weight: 650; }
-    .totals {
-      margin-left: auto;
-      width: min(100%, 320px);
-      display: grid;
-      gap: 10px;
-      padding-top: 8px;
-    }
-    .totals .row {
-      display: flex;
-      justify-content: space-between;
-      gap: 16px;
-      color: var(--muted);
-      font-size: 0.92rem;
-    }
-    .totals .row strong { color: var(--ink); font-weight: 650; }
-    .totals .grand {
-      margin-top: 4px;
-      padding-top: 12px;
-      border-top: 1px dashed var(--line);
-      font-size: 1rem;
-      color: var(--ink);
-      font-weight: 700;
-    }
-    .thanks {
-      margin: 28px 0 0;
-      padding: 16px 18px;
-      border-radius: 14px;
-      background: var(--soft);
-      color: #334155;
-      font-size: 0.92rem;
-      line-height: 1.5;
-    }
-    .foot {
-      margin-top: 18px;
-      text-align: center;
-      color: #94a3b8;
-      font-size: 0.78rem;
-    }
-    @media (max-width: 640px) {
-      .content { padding: 28px 20px 24px; }
-      .top { flex-direction: column; }
-      .meta { grid-template-columns: 1fr; }
-    }
-    @media print {
-      body { background: #fff; padding: 0; }
-      .sheet { box-shadow: none; border: 0; border-radius: 0; }
-    }
-  </style>
-</head>
-<body>
-  <div class="page">
-    <article class="sheet">
-      <div class="accent"></div>
-      <div class="content">
-        <div class="top">
-          <div class="brand">
-            <div class="mark">LF</div>
-            <div>
-              <h1>${company}</h1>
-              <p>${businessId ? `ID ${businessId}` : "LogisticsFlow"}</p>
-            </div>
-          </div>
-          <span class="badge ${statusClass}">${statusText}</span>
-        </div>
-
-        <div class="hero">
-          <p class="hero-label">${escapeHtml(labels.amountPaidLabel)}</p>
-          <p class="hero-amount">${amountPaid}</p>
-          <p class="hero-meta">${escapeHtml(labels.paidOn)} ${paidAt}</p>
-        </div>
-
-        <div class="meta">
-          <div class="meta-item">
-            <span>${escapeHtml(labels.receiptNumber)}</span>
-            <strong>${receiptId}</strong>
-          </div>
-          <div class="meta-item">
-            <span>${escapeHtml(labels.invoice)}</span>
-            <strong>${invoiceNumber}</strong>
-          </div>
-          <div class="meta-item">
-            <span>${escapeHtml(labels.method)}</span>
-            <strong>${method}</strong>
-          </div>
-          <div class="meta-item">
-            <span>${escapeHtml(labels.status)}</span>
-            <strong>${escapeHtml(receipt.status === "paid" ? labels.statusPaid : labels.statusPartial)}</strong>
-          </div>
-        </div>
-
-        <div class="panel">
-          <div class="panel-head">${escapeHtml(labels.billedTo)}</div>
-          <div class="panel-body billed">
-            <strong>${customer}</strong>
-            <span>${escapeHtml(labels.customer)}</span>
-          </div>
-        </div>
-
-        <div class="panel">
-          <table>
-            <thead>
-              <tr>
-                <th>${escapeHtml(labels.description)}</th>
-                <th class="amount">${escapeHtml(labels.thisPayment)}</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>${lineDesc}</td>
-                <td class="amount">${amountPaid}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <div class="totals">
-          <div class="row"><span>${escapeHtml(labels.invoiceTotal)}</span><strong>${invoiceTotal}</strong></div>
-          <div class="row"><span>${escapeHtml(labels.paid)}</span><strong>${paidTotal}</strong></div>
-          <div class="row grand"><span>${escapeHtml(labels.remainingBalance)}</span><strong>${balance}</strong></div>
-        </div>
-
-        <p class="thanks">${escapeHtml(labels.thankYou)}</p>
-        <p class="foot">${escapeHtml(labels.poweredBy)} · ${receiptId}</p>
-      </div>
-    </article>
-  </div>
-</body>
-</html>`;
-}
-
 function ReceiptSheet({ receipt, labels }) {
   const statusOk = receipt.status === "paid";
   return (
@@ -1692,35 +1301,110 @@ function ReceiptSheet({ receipt, labels }) {
   );
 }
 
-async function shareReceiptFile(receipt, labels) {
-  const html = receiptHtml(receipt, labels);
-  const fileName = `${receipt.id}.html`;
-  const blob = new Blob([html], { type: "text/html" });
-  const file = new File([blob], fileName, { type: "text/html" });
-  const summary = `${labels.receiptTitle} ${receipt.id}\n${receipt.customer}\n${formatReceiptMoney(receipt.amountPaid)}`;
+function BillSheet({ bill, labels }) {
+  const status = bill.status || "open";
+  const badgeClass = status === "paid" ? "ok" : status === "open" ? "open" : "partial";
+  const badgeLabel =
+    status === "paid"
+      ? labels.statusPaid
+      : status === "partial"
+        ? labels.statusPartial
+        : status === "overdue"
+          ? labels.statusOverdue
+          : labels.billOpen;
+  const heroAmount = bill.balance > 0 ? bill.balance : bill.total;
 
-  if (navigator.share) {
-    try {
-      if (navigator.canShare?.({ files: [file] })) {
-        await navigator.share({
-          title: `${labels.receiptTitle} ${receipt.id}`,
-          text: summary,
-          files: [file],
-        });
-        return true;
-      }
-      await navigator.share({
-        title: `${labels.receiptTitle} ${receipt.id}`,
-        text: summary,
-      });
-      return true;
-    } catch (error) {
-      if (error?.name === "AbortError") return false;
-    }
-  }
+  return (
+    <article className="saas-receipt">
+      <div className="saas-receipt-accent" />
+      <div className="saas-receipt-body">
+        <div className="saas-receipt-top">
+          <div className="saas-receipt-brand">
+            <div className="saas-receipt-mark">LF</div>
+            <div>
+              <strong>{bill.companyName}</strong>
+              <span>{bill.businessId ? `ID ${bill.businessId}` : "LogisticsFlow"}</span>
+            </div>
+          </div>
+          <span className={`saas-receipt-badge ${badgeClass}`}>{badgeLabel}</span>
+        </div>
 
-  downloadFileBlob(fileName, blob);
-  return false;
+        <div className="saas-receipt-hero">
+          <span>{labels.amountDue}</span>
+          <strong>{formatReceiptMoney(heroAmount)}</strong>
+          <p>
+            {labels.issueDate}: {bill.issueDate || "—"}
+          </p>
+        </div>
+
+        <div className="saas-receipt-meta">
+          <div>
+            <span>{labels.invoice}</span>
+            <strong>{bill.invoiceNumber}</strong>
+          </div>
+          <div>
+            <span>{labels.dueDate}</span>
+            <strong>{bill.dueDate || "—"}</strong>
+          </div>
+          <div>
+            <span>{labels.total}</span>
+            <strong>{formatReceiptMoney(bill.total)}</strong>
+          </div>
+          <div>
+            <span>{labels.status}</span>
+            <strong>{badgeLabel}</strong>
+          </div>
+        </div>
+
+        <div className="saas-receipt-panel">
+          <div className="saas-receipt-panel-head">{labels.billedTo}</div>
+          <div className="saas-receipt-panel-body">
+            <strong>{bill.customer}</strong>
+            <span>{labels.customer}</span>
+          </div>
+        </div>
+
+        <div className="saas-receipt-panel">
+          <table className="saas-receipt-table">
+            <thead>
+              <tr>
+                <th>{labels.description}</th>
+                <th>{labels.total}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>
+                  {labels.billServiceLine} {bill.invoiceNumber}
+                </td>
+                <td>{formatReceiptMoney(bill.total)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div className="saas-receipt-totals">
+          <div>
+            <span>{labels.invoiceTotal}</span>
+            <strong>{formatReceiptMoney(bill.total)}</strong>
+          </div>
+          <div>
+            <span>{labels.paid}</span>
+            <strong>{formatReceiptMoney(bill.paid)}</strong>
+          </div>
+          <div className="grand">
+            <span>{labels.remainingBalance}</span>
+            <strong>{formatReceiptMoney(bill.balance)}</strong>
+          </div>
+        </div>
+
+        <p className="saas-receipt-thanks">{labels.thankYou}</p>
+        <p className="saas-receipt-foot">
+          {labels.poweredBy} · {bill.invoiceNumber}
+        </p>
+      </div>
+    </article>
+  );
 }
 
 function toDateKey(dateValue) {
@@ -2693,7 +2377,17 @@ function App() {
   };
 
   const openBillViewModal = (invoice) => {
-    setModal({ type: "billView", invoiceId: invoice.id });
+    const bill = buildBillDocument(invoice, authSession?.business);
+    setModal({ type: "billView", invoiceId: invoice.id, bill });
+  };
+
+  const openReceiptForInvoice = (invoice) => {
+    const receipt = buildReceiptFromInvoice(invoice, authSession?.business);
+    if (!receipt) {
+      showToast(t.billing.noReceiptYet, "error");
+      return;
+    }
+    setModal({ type: "receipt", receipt, invoiceId: invoice.id });
   };
 
   const invoiceStatusLabel = (status) => {
@@ -3471,11 +3165,15 @@ function App() {
       if (saveInFlightRef.current) return;
       saveInFlightRef.current = true;
 
+      const paidAt = new Date();
+      const tempPaymentId = `local-${Date.now()}`;
       const receipt = buildPaymentReceipt({
         invoice: targetInvoice,
         amountPaid: amount,
         business: authSession?.business,
         method: "BANK_TRANSFER",
+        paidAt,
+        paymentId: tempPaymentId,
       });
 
       setAppData((current) => ({
@@ -3486,12 +3184,22 @@ function App() {
                 ...payment,
                 paid: moneyValue(payment.paid) + amount,
                 status: moneyValue(payment.paid) + amount >= moneyValue(payment.total) ? "paid" : "partial",
+                paymentRecords: [
+                  {
+                    id: tempPaymentId,
+                    amount,
+                    method: "BANK_TRANSFER",
+                    paidAt: paidAt.toISOString(),
+                    note: "",
+                  },
+                  ...(payment.paymentRecords ?? []),
+                ],
               }
             : payment,
         ),
       }));
 
-      setModal({ type: "receipt", receipt });
+      setModal({ type: "receipt", receipt, invoiceId: targetInvoice.id });
       showToast(t.billing.receiptReady);
 
       void (async () => {
@@ -3500,7 +3208,7 @@ function App() {
             invoiceId: targetInvoice.id,
             customerId: targetInvoice.customerId || undefined,
             amount,
-            paymentDate: new Date().toISOString(),
+            paymentDate: paidAt.toISOString(),
             method: "BANK_TRANSFER",
             status: "COMPLETED",
           });
@@ -4740,6 +4448,7 @@ function App() {
                 {searchedPayments.map((payment) => {
                   const balance = invoiceBalance(payment);
                   const status = invoiceDisplayStatus(payment);
+                  const hasReceipt = (payment.paymentRecords?.length ?? 0) > 0 || moneyValue(payment.paid) > 0;
 
                   return (
                     <tr key={payment.id}>
@@ -4767,6 +4476,16 @@ function App() {
                             <Eye size={14} />
                             {t.billing.viewBill}
                           </button>
+                          {hasReceipt ? (
+                            <button
+                              type="button"
+                              className="button small secondary"
+                              onClick={() => openReceiptForInvoice(payment)}
+                            >
+                              <FileText size={14} />
+                              {t.billing.viewReceipt}
+                            </button>
+                          ) : null}
                           <button
                             type="button"
                             className="button small primary"
@@ -5890,54 +5609,58 @@ function App() {
         </Modal>
       ) : null}
 
-      {modal.type === "billView" && selectedBillingInvoice ? (
+      {modal.type === "billView" && (modal.bill || selectedBillingInvoice) ? (
         <Modal
           title={t.billing.billTitle}
           onClose={closeModal}
-          hideSave={invoiceBalance(selectedBillingInvoice) <= 0}
+          hideSave={invoiceBalance(selectedBillingInvoice || modal.bill) <= 0}
           onSave={() => openPayInvoiceModal(selectedBillingInvoice)}
           saveLabel={t.billing.pay}
           cancelLabel={t.common.close}
+          wide
+          footerActions={
+            <>
+              <button
+                type="button"
+                className="button secondary"
+                onClick={() => {
+                  const bill =
+                    modal.bill || buildBillDocument(selectedBillingInvoice, authSession?.business);
+                  downloadBillingDocument(bill, t.billing);
+                }}
+              >
+                <Download size={16} />
+                {t.billing.downloadBill}
+              </button>
+              <button
+                type="button"
+                className="button secondary"
+                onClick={() => {
+                  const bill =
+                    modal.bill || buildBillDocument(selectedBillingInvoice, authSession?.business);
+                  void shareBillingDocument(bill, t.billing);
+                }}
+              >
+                <Share2 size={16} />
+                {t.billing.shareBill}
+              </button>
+              {selectedBillingInvoice && moneyValue(selectedBillingInvoice.paid) > 0 ? (
+                <button
+                  type="button"
+                  className="button secondary"
+                  onClick={() => openReceiptForInvoice(selectedBillingInvoice)}
+                >
+                  <FileText size={16} />
+                  {t.billing.viewReceipt}
+                </button>
+              ) : null}
+            </>
+          }
         >
-          <div className="fleet-modal-details">
-            <div className="summary-row">
-              <span>{t.billing.invoice}</span>
-              <strong>{selectedBillingInvoice.invoiceNumber || selectedBillingInvoice.id}</strong>
-            </div>
-            <div className="summary-row">
-              <span>{t.billing.customer}</span>
-              <strong>{selectedBillingInvoice.customer}</strong>
-            </div>
-            <div className="summary-row">
-              <span>{t.billing.issueDate}</span>
-              <strong>{selectedBillingInvoice.date || "—"}</strong>
-            </div>
-            <div className="summary-row">
-              <span>{t.billing.dueDate}</span>
-              <strong>{selectedBillingInvoice.dueDate || "—"}</strong>
-            </div>
-            <div className="summary-row">
-              <span>{t.billing.total}</span>
-              <strong>{formatMoney(selectedBillingInvoice.total, language)}</strong>
-            </div>
-            <div className="summary-row">
-              <span>{t.billing.paid}</span>
-              <strong>{formatMoney(selectedBillingInvoice.paid, language)}</strong>
-            </div>
-            <div className="summary-row">
-              <span>{t.billing.balance}</span>
-              <strong>{formatMoney(invoiceBalance(selectedBillingInvoice), language)}</strong>
-            </div>
-            <div className="summary-row">
-              <span>{t.billing.status}</span>
-              <strong>
-                <StatusBadge
-                  status={invoiceDisplayStatus(selectedBillingInvoice)}
-                  label={invoiceStatusLabel(invoiceDisplayStatus(selectedBillingInvoice))}
-                />
-              </strong>
-            </div>
-          </div>
+          <BillSheet
+            bill={modal.bill || buildBillDocument(selectedBillingInvoice, authSession?.business)}
+            labels={t.billing}
+          />
         </Modal>
       ) : null}
 
@@ -5953,7 +5676,7 @@ function App() {
               <button
                 type="button"
                 className="button secondary"
-                onClick={() => downloadReceiptFile(modal.receipt, t.billing)}
+                onClick={() => downloadBillingDocument(modal.receipt, t.billing)}
               >
                 <Download size={16} />
                 {t.billing.downloadReceipt}
@@ -5962,7 +5685,7 @@ function App() {
                 type="button"
                 className="button primary"
                 onClick={() => {
-                  void shareReceiptFile(modal.receipt, t.billing);
+                  void shareBillingDocument(modal.receipt, t.billing);
                 }}
               >
                 <Share2 size={16} />

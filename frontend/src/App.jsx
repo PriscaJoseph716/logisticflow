@@ -2898,22 +2898,80 @@ function App() {
     }
   };
 
-  const updateShipmentStatus = async (id, nextStatus) => {
-    try {
-      await shipmentsApi.update(id, {
-        status:
-          nextStatus === "transit"
-            ? "IN_TRANSIT"
-            : nextStatus === "delivered"
-              ? "DELIVERED"
-              : "PENDING",
-        deliveredAt: nextStatus === "delivered" ? new Date().toISOString() : undefined,
-      });
-      await loadAppData({ silent: true });
-      showToast(t.toast.shipmentStatusUpdated);
-    } catch (error) {
-      showToast(getApiErrorMessage(error, "Unable to update shipment status."), "error");
-    }
+  const updateShipmentStatus = (id, nextStatus) => {
+    const previousShipments = appData.shipments;
+    const previousDeliveries = appData.deliveries;
+
+    setAppData((current) => {
+      const shipments = current.shipments.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              status: nextStatus,
+              deliveryStatus: nextStatus === "delivered" ? "delivered" : item.deliveryStatus,
+            }
+          : item,
+      );
+
+      const updated = shipments.find((item) => item.id === id);
+      let deliveries = current.deliveries;
+
+      if (nextStatus === "delivered" && updated) {
+        const alreadyListed = deliveries.some(
+          (delivery) => delivery.raw?.shipmentId === id || delivery.id === `local-${id}`,
+        );
+        if (!alreadyListed) {
+          deliveries = [
+            {
+              id: `local-${id}`,
+              deliveryCode: updated.shipmentCode ? `DEL-${String(updated.shipmentCode).slice(-6)}` : `DEL-${String(id).slice(-6)}`,
+              date: new Date().toISOString().slice(0, 10),
+              origin: updated.origin,
+              customer: updated.customer,
+              destination: updated.destination,
+              vehicle: updated.vehicle,
+              quantity: updated.quantity,
+              unit: updated.unit ?? "tons",
+              status: "delivered",
+              raw: { shipmentId: id },
+            },
+            ...deliveries,
+          ];
+        }
+      }
+
+      return { ...current, shipments, deliveries };
+    });
+
+    showToast(t.toast.shipmentStatusUpdated);
+
+    void (async () => {
+      try {
+        await shipmentsApi.update(id, {
+          status:
+            nextStatus === "transit"
+              ? "IN_TRANSIT"
+              : nextStatus === "delivered"
+                ? "DELIVERED"
+                : "PENDING",
+          deliveredAt: nextStatus === "delivered" ? new Date().toISOString() : undefined,
+        });
+        refreshAfterSave();
+      } catch (error) {
+        setAppData((current) => ({
+          ...current,
+          shipments: previousShipments,
+          deliveries: previousDeliveries,
+        }));
+        showToast(
+          getApiErrorMessage(
+            error,
+            language === "sw" ? "Imeshindikana kusasisha hali ya mzigo." : "Unable to update shipment status.",
+          ),
+          "error",
+        );
+      }
+    })();
   };
 
   const deleteFleetVehicle = async (id) => {

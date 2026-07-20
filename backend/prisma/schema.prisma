@@ -7,15 +7,23 @@ datasource db {
 }
 
 model Business {
-  id          String       @id @default(uuid())
-  businessId  String       @unique
+  id          String              @id @default(uuid())
+  businessId  String              @unique
   companyName String
-  slug        String       @unique
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  slug        String              @unique
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
   users       User[]
   roles       Role[]
   assignments Assignment[]
+  vehicles    Vehicle[]
+  customers   Customer[]
+  suppliers   Supplier[]
+  shipments   Shipment[]
+  deliveries  Delivery[]
+  maintenance MaintenanceRecord[]
+  invoices    Invoice[]
+  payments    Payment[]
 }
 
 model Role {
@@ -35,20 +43,22 @@ model Role {
 }
 
 model User {
-  id           String       @id @default(uuid())
-  fullName     String
-  email        String
-  passwordHash String
-  phone        String?
-  role         String       @default("OWNER")
-  roleId       String?
-  customRole   Role?        @relation(fields: [roleId], references: [id], onDelete: SetNull)
-  businessId   String
-  business     Business     @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  assignments  Assignment[]
-  proofs       Proof[]
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+  id              String              @id @default(uuid())
+  fullName        String
+  email           String
+  passwordHash    String
+  phone           String?
+  role            String              @default("OWNER")
+  roleId          String?
+  customRole      Role?               @relation(fields: [roleId], references: [id], onDelete: SetNull)
+  businessId      String
+  business        Business            @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  assignments     Assignment[]
+  proofs          Proof[]
+  assignedVehicles Vehicle[]          @relation("VehicleDriver")
+  drivenShipments Shipment[]          @relation("ShipmentDriver")
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
 
   @@unique([businessId, email])
   @@index([businessId])
@@ -88,4 +98,217 @@ model Proof {
   createdAt    DateTime   @default(now())
 
   @@index([assignmentId])
+}
+
+model Vehicle {
+  id                 String              @id @default(uuid())
+  businessId         String
+  business           Business            @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  name               String              @default("")
+  headPlateNumber    String
+  trailerPlateNumber String?
+  category           String              @default("owned")
+  status             String              @default("ACTIVE")
+  mileage            Int                 @default(0)
+  fuelLevel          Int                 @default(100)
+  fuelType           String              @default("")
+  vehicleType        String              @default("truck")
+  insuranceExpiry    DateTime?
+  licenseExpiry      DateTime?
+  documentsJson      String              @default("{}")
+  assignedDriverId   String?
+  assignedDriver     User?               @relation("VehicleDriver", fields: [assignedDriverId], references: [id], onDelete: SetNull)
+  shipments          Shipment[]
+  deliveries         Delivery[]
+  maintenance        MaintenanceRecord[]
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  @@unique([businessId, headPlateNumber])
+  @@index([businessId])
+  @@index([status])
+}
+
+model Customer {
+  id            String     @id @default(uuid())
+  businessId    String
+  business      Business   @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  customerCode  String
+  name          String
+  phone         String     @default("")
+  location      String     @default("")
+  email         String?
+  contactPerson String?
+  notes         String?
+  shipments     Shipment[]
+  deliveries    Delivery[]
+  invoices      Invoice[]
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  @@unique([businessId, customerCode])
+  @@index([businessId])
+}
+
+model Supplier {
+  id           String     @id @default(uuid())
+  businessId   String
+  business     Business   @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  supplierCode String
+  name         String
+  contact      String     @default("")
+  location     String     @default("")
+  buyingPrice  Float      @default(0)
+  sellingPrice Float      @default(0)
+  shipments    Shipment[]
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@unique([businessId, supplierCode])
+  @@index([businessId])
+}
+
+model Shipment {
+  id             String     @id @default(uuid())
+  businessId     String
+  business       Business   @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  shipmentCode   String
+  supplierId     String?
+  supplier       Supplier?  @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  customerId     String?
+  customer       Customer?  @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  vehicleId      String?
+  vehicle        Vehicle?   @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  driverId       String?
+  driver         User?      @relation("ShipmentDriver", fields: [driverId], references: [id], onDelete: SetNull)
+  origin         String     @default("")
+  destination    String     @default("")
+  quantityTons   Float      @default(0)
+  status         String     @default("PENDING")
+  deliveryStatus String     @default("SCHEDULED")
+  scheduledDate  DateTime?
+  deliveries     Delivery[]
+  invoices       Invoice[]
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  @@unique([businessId, shipmentCode])
+  @@index([businessId])
+  @@index([status])
+}
+
+model Delivery {
+  id           String    @id @default(uuid())
+  businessId   String
+  business     Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  deliveryCode String
+  shipmentId   String?
+  shipment     Shipment? @relation(fields: [shipmentId], references: [id], onDelete: SetNull)
+  customerId   String?
+  customer     Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  vehicleId    String?
+  vehicle      Vehicle?  @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  status       String    @default("COMPLETED")
+  deliveredAt  DateTime  @default(now())
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@unique([businessId, deliveryCode])
+  @@index([businessId])
+}
+
+model MaintenanceRecord {
+  id                 String                   @id @default(uuid())
+  businessId         String
+  business           Business                 @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  vehicleId          String
+  vehicle            Vehicle                  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  maintenanceDate    DateTime
+  maintenanceType    String
+  description        String                   @default("")
+  workshop           String                   @default("")
+  mechanic           String                   @default("")
+  currentMileage     Int                      @default(0)
+  laborCost          Float                    @default(0)
+  partsCost          Float                    @default(0)
+  otherCost          Float                    @default(0)
+  totalCost          Float                    @default(0)
+  nextServiceDate    DateTime?
+  nextServiceMileage Int?
+  status             String                   @default("PENDING")
+  parts              MaintenancePart[]
+  attachments        MaintenanceAttachment[]
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+
+  @@index([businessId])
+  @@index([vehicleId])
+  @@index([status])
+}
+
+model MaintenancePart {
+  id            String            @id @default(uuid())
+  maintenanceId String
+  maintenance   MaintenanceRecord @relation(fields: [maintenanceId], references: [id], onDelete: Cascade)
+  partName      String
+  brand         String            @default("")
+  quantity      Int               @default(1)
+  unitPrice     Float             @default(0)
+  totalPrice    Float             @default(0)
+  supplier      String            @default("")
+
+  @@index([maintenanceId])
+}
+
+model MaintenanceAttachment {
+  id            String            @id @default(uuid())
+  maintenanceId String
+  maintenance   MaintenanceRecord @relation(fields: [maintenanceId], references: [id], onDelete: Cascade)
+  fileName      String
+  fileUrl       String
+  mimeType      String            @default("")
+  category      String            @default("OTHER")
+  createdAt     DateTime          @default(now())
+
+  @@index([maintenanceId])
+}
+
+model Invoice {
+  id           String    @id @default(uuid())
+  businessId   String
+  business     Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  invoiceNumber String
+  customerId   String?
+  customer     Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  shipmentId   String?
+  shipment     Shipment? @relation(fields: [shipmentId], references: [id], onDelete: SetNull)
+  totalAmount  Float     @default(0)
+  paidAmount   Float     @default(0)
+  status       String    @default("OPEN")
+  issueDate    DateTime  @default(now())
+  dueDate      DateTime?
+  payments     Payment[]
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@unique([businessId, invoiceNumber])
+  @@index([businessId])
+  @@index([status])
+}
+
+model Payment {
+  id          String   @id @default(uuid())
+  businessId  String
+  business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  invoiceId   String?
+  invoice     Invoice? @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  amount      Float
+  method      String   @default("CASH")
+  note        String   @default("")
+  paidAt      DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([businessId])
+  @@index([invoiceId])
 }

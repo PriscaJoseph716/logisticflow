@@ -64,6 +64,7 @@ import {
   uploadsApi,
 } from "./lib/api";
 import {
+  createDashboardActivity,
   mapCustomerRecord,
   mapDeliveryRecord,
   mapFleetRecord,
@@ -2086,15 +2087,75 @@ function App() {
       return;
     }
 
-    // Auth-only backend: feature modules are not available yet.
     if (!silent) {
       setPageLoading(true);
     }
 
-    setAppData(emptyAppData);
+    const asItems = (payload) => {
+      if (Array.isArray(payload)) return payload;
+      if (Array.isArray(payload?.items)) return payload.items;
+      if (Array.isArray(payload?.data?.items)) return payload.data.items;
+      if (Array.isArray(payload?.data)) return payload.data;
+      return [];
+    };
 
-    if (!silent) {
-      setPageLoading(false);
+    try {
+      const results = await Promise.allSettled([
+        fleetApi.list(),
+        customersApi.list(),
+        suppliersApi.list(),
+        shipmentsApi.list(),
+        deliveriesApi.list(),
+        maintenanceApi.list(),
+        billingApi.list(),
+        notificationsApi.list(),
+        dashboardApi.summary(),
+        billingApi.summary(),
+        maintenanceApi.analytics(),
+        maintenanceApi.upcoming(),
+        maintenanceApi.mileageReminders(),
+        reportsApi.list(),
+      ]);
+
+      const valueAt = (index) =>
+        results[index].status === "fulfilled" ? results[index].value : null;
+
+      const failed = results.filter((result) => result.status === "rejected");
+      if (failed.length > 0 && !silent) {
+        const firstMessage = getApiErrorMessage(
+          failed[0].reason,
+          "Some workspace data could not be loaded.",
+        );
+        showToast(firstMessage, "error");
+      }
+
+      const notifications = asItems(valueAt(7)).map(mapNotificationRecord);
+
+      setAppData({
+        fleet: asItems(valueAt(0)).map(mapFleetRecord),
+        customers: asItems(valueAt(1)).map(mapCustomerRecord),
+        suppliers: asItems(valueAt(2)).map(mapSupplierRecord),
+        shipments: asItems(valueAt(3)).map(mapShipmentRecord),
+        deliveries: asItems(valueAt(4)).map(mapDeliveryRecord),
+        maintenanceRecords: asItems(valueAt(5)).map(mapMaintenanceRecord),
+        payments: asItems(valueAt(6)).map(mapInvoiceToPaymentCard),
+        notifications,
+        reports: asItems(valueAt(13)),
+        dashboardSummary: valueAt(8)?.item ?? valueAt(8),
+        billingSummary: valueAt(9)?.item ?? valueAt(9),
+        maintenanceAnalytics: valueAt(10)?.item ?? valueAt(10),
+        maintenanceUpcoming: asItems(valueAt(11)).map(mapMaintenanceRecord),
+        maintenanceMileageReminders: asItems(valueAt(12)).map(mapMaintenanceRecord),
+        activityFeed: createDashboardActivity(notifications),
+      });
+    } catch (error) {
+      if (!silent) {
+        showToast(getApiErrorMessage(error, "Unable to load workspace data."), "error");
+      }
+    } finally {
+      if (!silent) {
+        setPageLoading(false);
+      }
     }
   };
 

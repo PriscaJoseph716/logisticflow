@@ -13,6 +13,7 @@ import {
   Clock3,
   Download,
   Eye,
+  EyeOff,
   FileDown,
   FileSpreadsheet,
   FileText,
@@ -1221,6 +1222,7 @@ function App() {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [authSession, setAuthSession] = useState(null);
   const [authForm, setAuthForm] = useState({ businessId: "", login: "", password: "" });
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
   const [bootSplashMode, setBootSplashMode] = useState("loading");
   const [bootWelcomeName, setBootWelcomeName] = useState("");
@@ -2781,14 +2783,24 @@ function App() {
         </label>
         <label>
           {t.auth.password}
-          <input
-            type="password"
-            name="password"
-            value={authForm.password}
-            onChange={handleAuthInputChange}
-            placeholder="Enter your password"
-            autoComplete="current-password"
-          />
+          <div className="auth-password-wrap">
+            <input
+              type={showLoginPassword ? "text" : "password"}
+              name="password"
+              value={authForm.password}
+              onChange={handleAuthInputChange}
+              placeholder="Enter your password"
+              autoComplete="current-password"
+            />
+            <button
+              type="button"
+              className="auth-password-toggle"
+              onClick={() => setShowLoginPassword((current) => !current)}
+              aria-label={showLoginPassword ? "Hide password" : "Show password"}
+            >
+              {showLoginPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+            </button>
+          </div>
         </label>
         <button type="submit" className="button primary full" disabled={authSubmitting}>
           {authSubmitting ? "Signing in..." : t.auth.signIn}

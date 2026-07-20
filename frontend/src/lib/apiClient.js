@@ -78,6 +78,15 @@ export function configureApiClient({ onAuthExpired } = {}) {
   authExpiredHandler = onAuthExpired ?? (() => {});
 }
 
+api.interceptors.request.use((config) => {
+  const token = inMemorySession?.token;
+  if (token) {
+    config.headers = config.headers ?? {};
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -89,7 +98,6 @@ api.interceptors.response.use(
       const hadSession = Boolean(getSession()?.user);
       clearSession();
 
-      // Only treat as expired session when the user was already signed in.
       if (hadSession) {
         authExpiredHandler(error);
       }

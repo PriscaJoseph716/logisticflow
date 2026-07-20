@@ -10,11 +10,12 @@ function formatRoleLabel(user) {
   return user?.roleName || user?.role || "Member";
 }
 
-function normalizeSessionPayload(payload) {
+function normalizeSessionPayload(payload, previousSession = null) {
   const user = payload.user ?? {};
   const business = payload.business ?? {};
 
   return {
+    token: payload.token ?? previousSession?.token ?? null,
     user: {
       ...user,
       role: user.role ?? "OWNER",
@@ -73,15 +74,14 @@ export const authApi = {
   },
 
   async bootstrap() {
-    // Cookie-only auth: skip /me when there is no local session to avoid a 401 on first load.
     const existing = getSession();
-    if (!existing?.user) {
+    if (!existing?.user || !existing?.token) {
       return null;
     }
 
     try {
       const payload = await this.getCurrentUser();
-      const session = normalizeSessionPayload(payload);
+      const session = normalizeSessionPayload(payload, existing);
       setSession(session);
       return session;
     } catch (_error) {

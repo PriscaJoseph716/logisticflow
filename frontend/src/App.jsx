@@ -2540,6 +2540,7 @@ function App() {
   };
 
   const buildAuthSession = (payload) => ({
+    token: payload.token ?? null,
     user: {
       ...payload.user,
       role: payload.user?.role ?? "OWNER",

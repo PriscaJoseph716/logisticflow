@@ -4,9 +4,21 @@ import { env } from "../config/env.js";
 import { AppError } from "../utils/app-error.js";
 import { verifyToken } from "../utils/jwt.js";
 
+function readAccessToken(request: Request): string | undefined {
+  const cookieToken = request.cookies?.[env.COOKIE_NAME] as string | undefined;
+  if (cookieToken) return cookieToken;
+
+  const header = request.headers.authorization;
+  if (!header) return undefined;
+
+  const [scheme, token] = header.split(" ");
+  if (scheme?.toLowerCase() !== "bearer" || !token) return undefined;
+  return token.trim();
+}
+
 export async function authMiddleware(request: Request, _response: Response, next: NextFunction) {
   try {
-    const token = request.cookies?.[env.COOKIE_NAME] as string | undefined;
+    const token = readAccessToken(request);
 
     if (!token) {
       throw new AppError("Authentication required.", 401);

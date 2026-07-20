@@ -20,6 +20,7 @@ export class AuthController {
 
     response.status(201).json({
       success: true,
+      token: result.token,
       user: result.user,
       business: result.business,
     });
@@ -32,6 +33,7 @@ export class AuthController {
 
     response.json({
       success: true,
+      token: result.token,
       user: result.user,
       business: result.business,
     });

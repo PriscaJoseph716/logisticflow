@@ -1,5 +1,6 @@
 import { prisma } from "../config/database.js";
 import { AppError } from "../utils/app-error.js";
+import { safeTrim } from "../utils/json.js";
 
 export class CustomerService {
   async list(businessId: string) {
@@ -20,15 +21,15 @@ export class CustomerService {
     input: {
       customerCode: string;
       name: string;
-      phone?: string;
-      location?: string;
+      phone?: string | null;
+      location?: string | null;
       email?: string | null;
       contactPerson?: string | null;
       notes?: string | null;
     },
   ) {
-    const customerCode = input.customerCode?.trim();
-    const name = input.name?.trim();
+    const customerCode = safeTrim(input.customerCode);
+    const name = safeTrim(input.name);
     if (!customerCode || !name) {
       throw new AppError("customerCode and name are required.");
     }
@@ -38,11 +39,11 @@ export class CustomerService {
         businessId,
         customerCode,
         name,
-        phone: input.phone?.trim() ?? "",
-        location: input.location?.trim() ?? "",
-        email: input.email?.trim() || null,
-        contactPerson: input.contactPerson?.trim() || null,
-        notes: input.notes?.trim() || null,
+        phone: safeTrim(input.phone),
+        location: safeTrim(input.location),
+        email: safeTrim(input.email) || null,
+        contactPerson: safeTrim(input.contactPerson) || null,
+        notes: safeTrim(input.notes) || null,
       },
     });
   }
@@ -51,10 +52,10 @@ export class CustomerService {
     businessId: string,
     id: string,
     input: {
-      customerCode?: string;
-      name?: string;
-      phone?: string;
-      location?: string;
+      customerCode?: string | null;
+      name?: string | null;
+      phone?: string | null;
+      location?: string | null;
       email?: string | null;
       contactPerson?: string | null;
       notes?: string | null;
@@ -66,15 +67,15 @@ export class CustomerService {
     return prisma.customer.update({
       where: { id },
       data: {
-        ...(input.customerCode !== undefined ? { customerCode: input.customerCode.trim() } : {}),
-        ...(input.name !== undefined ? { name: input.name.trim() } : {}),
-        ...(input.phone !== undefined ? { phone: input.phone.trim() } : {}),
-        ...(input.location !== undefined ? { location: input.location.trim() } : {}),
-        ...(input.email !== undefined ? { email: input.email?.trim() || null } : {}),
+        ...(input.customerCode !== undefined ? { customerCode: safeTrim(input.customerCode) } : {}),
+        ...(input.name !== undefined ? { name: safeTrim(input.name) } : {}),
+        ...(input.phone !== undefined ? { phone: safeTrim(input.phone) } : {}),
+        ...(input.location !== undefined ? { location: safeTrim(input.location) } : {}),
+        ...(input.email !== undefined ? { email: safeTrim(input.email) || null } : {}),
         ...(input.contactPerson !== undefined
-          ? { contactPerson: input.contactPerson?.trim() || null }
+          ? { contactPerson: safeTrim(input.contactPerson) || null }
           : {}),
-        ...(input.notes !== undefined ? { notes: input.notes?.trim() || null } : {}),
+        ...(input.notes !== undefined ? { notes: safeTrim(input.notes) || null } : {}),
       },
     });
   }

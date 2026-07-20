@@ -31,7 +31,7 @@ const iconMap = {
 };
 
 function initials(name = "") {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
+  const parts = String(name ?? "").trim().split(/\s+/).filter(Boolean);
   if (!parts.length) return "LF";
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
   return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
@@ -50,8 +50,8 @@ export default function Sidebar({
   onLogout,
 }) {
   const expanded = isMobile ? mobileOpen : open;
-  const displayName = userName.trim() || "User";
-  const displayRole = userRole.trim() || "Owner";
+  const displayName = String(userName ?? "").trim() || "User";
+  const displayRole = String(userRole ?? "").trim() || "Owner";
 
   return (
     <>

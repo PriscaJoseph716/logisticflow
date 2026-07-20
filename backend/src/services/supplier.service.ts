@@ -1,5 +1,6 @@
 import { prisma } from "../config/database.js";
 import { AppError } from "../utils/app-error.js";
+import { safeTrim } from "../utils/json.js";
 
 export class SupplierService {
   async list(businessId: string) {
@@ -20,14 +21,14 @@ export class SupplierService {
     input: {
       supplierCode: string;
       name: string;
-      contact?: string;
-      location?: string;
+      contact?: string | null;
+      location?: string | null;
       buyingPrice?: number;
       sellingPrice?: number;
     },
   ) {
-    const supplierCode = input.supplierCode?.trim();
-    const name = input.name?.trim();
+    const supplierCode = safeTrim(input.supplierCode);
+    const name = safeTrim(input.name);
     if (!supplierCode || !name) {
       throw new AppError("supplierCode and name are required.");
     }
@@ -37,8 +38,8 @@ export class SupplierService {
         businessId,
         supplierCode,
         name,
-        contact: input.contact?.trim() ?? "",
-        location: input.location?.trim() ?? "",
+        contact: safeTrim(input.contact),
+        location: safeTrim(input.location),
         buyingPrice: Number(input.buyingPrice ?? 0),
         sellingPrice: Number(input.sellingPrice ?? 0),
       },
@@ -49,10 +50,10 @@ export class SupplierService {
     businessId: string,
     id: string,
     input: {
-      supplierCode?: string;
-      name?: string;
-      contact?: string;
-      location?: string;
+      supplierCode?: string | null;
+      name?: string | null;
+      contact?: string | null;
+      location?: string | null;
       buyingPrice?: number;
       sellingPrice?: number;
     },
@@ -63,10 +64,10 @@ export class SupplierService {
     return prisma.supplier.update({
       where: { id },
       data: {
-        ...(input.supplierCode !== undefined ? { supplierCode: input.supplierCode.trim() } : {}),
-        ...(input.name !== undefined ? { name: input.name.trim() } : {}),
-        ...(input.contact !== undefined ? { contact: input.contact.trim() } : {}),
-        ...(input.location !== undefined ? { location: input.location.trim() } : {}),
+        ...(input.supplierCode !== undefined ? { supplierCode: safeTrim(input.supplierCode) } : {}),
+        ...(input.name !== undefined ? { name: safeTrim(input.name) } : {}),
+        ...(input.contact !== undefined ? { contact: safeTrim(input.contact) } : {}),
+        ...(input.location !== undefined ? { location: safeTrim(input.location) } : {}),
         ...(input.buyingPrice !== undefined ? { buyingPrice: Number(input.buyingPrice) } : {}),
         ...(input.sellingPrice !== undefined ? { sellingPrice: Number(input.sellingPrice) } : {}),
       },

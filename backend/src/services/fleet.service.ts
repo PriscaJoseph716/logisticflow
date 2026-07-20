@@ -1,6 +1,6 @@
 import { prisma } from "../config/database.js";
 import { AppError } from "../utils/app-error.js";
-import { parseJson, toJsonString } from "../utils/json.js";
+import { parseJson, safeTrim, safeUpper, toJsonString } from "../utils/json.js";
 
 const driverSelect = { id: true, fullName: true, email: true, phone: true, role: true } as const;
 
@@ -30,22 +30,22 @@ export class FleetService {
   async create(
     businessId: string,
     input: {
-      name?: string;
+      name?: string | null;
       headPlateNumber: string;
       trailerPlateNumber?: string | null;
-      category?: string;
-      status?: string;
+      category?: string | null;
+      status?: string | null;
       mileage?: number;
       fuelLevel?: number;
-      fuelType?: string;
-      vehicleType?: string;
+      fuelType?: string | null;
+      vehicleType?: string | null;
       insuranceExpiry?: string | null;
       licenseExpiry?: string | null;
       documentsJson?: unknown;
       assignedDriverId?: string | null;
     },
   ) {
-    const headPlateNumber = input.headPlateNumber?.trim();
+    const headPlateNumber = safeTrim(input.headPlateNumber);
     if (!headPlateNumber) {
       throw new AppError("headPlateNumber is required.");
     }
@@ -57,15 +57,15 @@ export class FleetService {
     const vehicle = await prisma.vehicle.create({
       data: {
         businessId,
-        name: input.name?.trim() ?? "",
+        name: safeTrim(input.name),
         headPlateNumber,
-        trailerPlateNumber: input.trailerPlateNumber?.trim() || null,
-        category: input.category?.trim() || "owned",
-        status: (input.status ?? "ACTIVE").trim().toUpperCase(),
+        trailerPlateNumber: safeTrim(input.trailerPlateNumber) || null,
+        category: safeTrim(input.category, "owned") || "owned",
+        status: safeUpper(input.status, "ACTIVE") || "ACTIVE",
         mileage: Number(input.mileage ?? 0),
         fuelLevel: Number(input.fuelLevel ?? 100),
-        fuelType: input.fuelType?.trim() ?? "",
-        vehicleType: input.vehicleType?.trim() || "truck",
+        fuelType: safeTrim(input.fuelType),
+        vehicleType: safeTrim(input.vehicleType, "truck") || "truck",
         insuranceExpiry: parseOptionalDate(input.insuranceExpiry) ?? null,
         licenseExpiry: parseOptionalDate(input.licenseExpiry) ?? null,
         documentsJson: toJsonString(input.documentsJson ?? {}),
@@ -81,15 +81,15 @@ export class FleetService {
     businessId: string,
     id: string,
     input: {
-      name?: string;
-      headPlateNumber?: string;
+      name?: string | null;
+      headPlateNumber?: string | null;
       trailerPlateNumber?: string | null;
-      category?: string;
-      status?: string;
+      category?: string | null;
+      status?: string | null;
       mileage?: number;
       fuelLevel?: number;
-      fuelType?: string;
-      vehicleType?: string;
+      fuelType?: string | null;
+      vehicleType?: string | null;
       insuranceExpiry?: string | null;
       licenseExpiry?: string | null;
       documentsJson?: unknown;
@@ -106,17 +106,25 @@ export class FleetService {
     const vehicle = await prisma.vehicle.update({
       where: { id },
       data: {
-        ...(input.name !== undefined ? { name: input.name.trim() } : {}),
-        ...(input.headPlateNumber !== undefined ? { headPlateNumber: input.headPlateNumber.trim() } : {}),
-        ...(input.trailerPlateNumber !== undefined
-          ? { trailerPlateNumber: input.trailerPlateNumber?.trim() || null }
+        ...(input.name !== undefined ? { name: safeTrim(input.name) } : {}),
+        ...(input.headPlateNumber !== undefined
+          ? { headPlateNumber: safeTrim(input.headPlateNumber) }
           : {}),
-        ...(input.category !== undefined ? { category: input.category.trim() } : {}),
-        ...(input.status !== undefined ? { status: input.status.trim().toUpperCase() } : {}),
+        ...(input.trailerPlateNumber !== undefined
+          ? { trailerPlateNumber: safeTrim(input.trailerPlateNumber) || null }
+          : {}),
+        ...(input.category !== undefined
+          ? { category: safeTrim(input.category, "owned") || "owned" }
+          : {}),
+        ...(input.status !== undefined
+          ? { status: safeUpper(input.status, "ACTIVE") || "ACTIVE" }
+          : {}),
         ...(input.mileage !== undefined ? { mileage: Number(input.mileage) } : {}),
         ...(input.fuelLevel !== undefined ? { fuelLevel: Number(input.fuelLevel) } : {}),
-        ...(input.fuelType !== undefined ? { fuelType: input.fuelType.trim() } : {}),
-        ...(input.vehicleType !== undefined ? { vehicleType: input.vehicleType.trim() } : {}),
+        ...(input.fuelType !== undefined ? { fuelType: safeTrim(input.fuelType) } : {}),
+        ...(input.vehicleType !== undefined
+          ? { vehicleType: safeTrim(input.vehicleType, "truck") || "truck" }
+          : {}),
         ...(input.insuranceExpiry !== undefined
           ? { insuranceExpiry: parseOptionalDate(input.insuranceExpiry) ?? null }
           : {}),

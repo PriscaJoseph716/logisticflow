@@ -1,5 +1,6 @@
 import { prisma } from "../config/database.js";
 import { AppError } from "../utils/app-error.js";
+import { safeTrim, safeUpper } from "../utils/json.js";
 
 const maintenanceInclude = {
   vehicle: {
@@ -15,18 +16,18 @@ const maintenanceInclude = {
 
 type PartInput = {
   partName: string;
-  brand?: string;
+  brand?: string | null;
   quantity?: number;
   unitPrice?: number;
   totalPrice?: number;
-  supplier?: string;
+  supplier?: string | null;
 };
 
 type AttachmentInput = {
   fileName: string;
   fileUrl: string;
-  mimeType?: string;
-  category?: string;
+  mimeType?: string | null;
+  category?: string | null;
 };
 
 function normalizeParts(parts: PartInput[] = []) {
@@ -36,22 +37,22 @@ function normalizeParts(parts: PartInput[] = []) {
     const totalPrice =
       part.totalPrice !== undefined ? Number(part.totalPrice) : quantity * unitPrice;
     return {
-      partName: part.partName.trim(),
-      brand: part.brand?.trim() ?? "",
+      partName: safeTrim(part.partName),
+      brand: safeTrim(part.brand),
       quantity,
       unitPrice,
       totalPrice,
-      supplier: part.supplier?.trim() ?? "",
+      supplier: safeTrim(part.supplier),
     };
   });
 }
 
 function normalizeAttachments(attachments: AttachmentInput[] = []) {
   return attachments.map((item) => ({
-    fileName: item.fileName.trim(),
-    fileUrl: item.fileUrl.trim(),
-    mimeType: item.mimeType?.trim() ?? "",
-    category: (item.category ?? "OTHER").trim().toUpperCase(),
+    fileName: safeTrim(item.fileName),
+    fileUrl: safeTrim(item.fileUrl),
+    mimeType: safeTrim(item.mimeType),
+    category: safeUpper(item.category, "OTHER") || "OTHER",
   }));
 }
 
@@ -143,7 +144,7 @@ export class MaintenanceService {
       attachments?: AttachmentInput[];
     },
   ) {
-    if (!input.vehicleId || !input.maintenanceDate || !input.maintenanceType?.trim()) {
+    if (!input.vehicleId || !input.maintenanceDate || !safeTrim(input.maintenanceType)) {
       throw new AppError("vehicleId, maintenanceDate, and maintenanceType are required.");
     }
 
@@ -163,10 +164,10 @@ export class MaintenanceService {
         businessId,
         vehicleId: input.vehicleId,
         maintenanceDate: new Date(input.maintenanceDate),
-        maintenanceType: input.maintenanceType.trim(),
-        description: input.description?.trim() ?? "",
-        workshop: input.workshop?.trim() ?? "",
-        mechanic: input.mechanic?.trim() ?? "",
+        maintenanceType: safeTrim(input.maintenanceType),
+        description: safeTrim(input.description),
+        workshop: safeTrim(input.workshop),
+        mechanic: safeTrim(input.mechanic),
         currentMileage: Number(input.currentMileage ?? 0),
         laborCost,
         partsCost,
@@ -177,7 +178,7 @@ export class MaintenanceService {
           input.nextServiceMileage !== undefined && input.nextServiceMileage !== null
             ? Number(input.nextServiceMileage)
             : null,
-        status: (input.status ?? "PENDING").trim().toUpperCase(),
+        status: safeUpper(input.status, "PENDING") || "PENDING",
         parts: { create: parts },
         attachments: { create: attachments },
       },
@@ -254,11 +255,11 @@ export class MaintenanceService {
             ? { maintenanceDate: new Date(input.maintenanceDate) }
             : {}),
           ...(input.maintenanceType !== undefined
-            ? { maintenanceType: input.maintenanceType.trim() }
+            ? { maintenanceType: safeTrim(input.maintenanceType) }
             : {}),
-          ...(input.description !== undefined ? { description: input.description.trim() } : {}),
-          ...(input.workshop !== undefined ? { workshop: input.workshop.trim() } : {}),
-          ...(input.mechanic !== undefined ? { mechanic: input.mechanic.trim() } : {}),
+          ...(input.description !== undefined ? { description: safeTrim(input.description) } : {}),
+          ...(input.workshop !== undefined ? { workshop: safeTrim(input.workshop) } : {}),
+          ...(input.mechanic !== undefined ? { mechanic: safeTrim(input.mechanic) } : {}),
           ...(input.currentMileage !== undefined
             ? { currentMileage: Number(input.currentMileage) }
             : {}),
@@ -279,7 +280,9 @@ export class MaintenanceService {
                   input.nextServiceMileage !== null ? Number(input.nextServiceMileage) : null,
               }
             : {}),
-          ...(input.status !== undefined ? { status: input.status.trim().toUpperCase() } : {}),
+          ...(input.status !== undefined
+            ? { status: safeUpper(input.status, "PENDING") || "PENDING" }
+            : {}),
           ...(parts ? { parts: { create: parts } } : {}),
           ...(attachments ? { attachments: { create: attachments } } : {}),
         },

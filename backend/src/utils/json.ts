@@ -1,3 +1,15 @@
+/** Trim a value that may be null/undefined without throwing. */
+export function safeTrim(value: unknown, fallback = ""): string {
+  if (value == null) return fallback;
+  return String(value).trim();
+}
+
+/** Uppercase after safe trim; useful for status enums. */
+export function safeUpper(value: unknown, fallback = ""): string {
+  const trimmed = safeTrim(value, fallback);
+  return trimmed ? trimmed.toUpperCase() : fallback;
+}
+
 export function toJsonString(value: unknown): string {
   if (value == null) return "{}";
   if (typeof value === "string") {

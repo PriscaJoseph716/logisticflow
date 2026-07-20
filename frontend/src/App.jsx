@@ -2444,7 +2444,7 @@ function App() {
           status: existingVehicle?.status?.toUpperCase?.() ?? "ACTIVE",
           mileage: Number(existingVehicle?.mileage ?? 0),
           fuelLevel: Number(existingVehicle?.fuelLevel ?? 0),
-          fuelType: existingVehicle?.fuelType || null,
+          fuelType: existingVehicle?.fuelType ?? "",
           insuranceExpiry: existingVehicle?.insuranceExpiry || null,
           licenseExpiry: existingVehicle?.licenseExpiry || null,
           documentsJson,

@@ -1,5 +1,6 @@
 import { prisma } from "../config/database.js";
 import { AppError } from "../utils/app-error.js";
+import { safeTrim, safeUpper } from "../utils/json.js";
 
 export class PaymentService {
   async list(businessId: string) {
@@ -15,8 +16,8 @@ export class PaymentService {
     input: {
       amount: number;
       invoiceId: string;
-      method?: string;
-      note?: string;
+      method?: string | null;
+      note?: string | null;
       paidAt?: string;
       paymentDate?: string;
     },
@@ -39,8 +40,8 @@ export class PaymentService {
           businessId,
           invoiceId: invoice.id,
           amount,
-          method: (input.method ?? "CASH").trim().toUpperCase(),
-          note: input.note?.trim() ?? "",
+          method: safeUpper(input.method, "CASH") || "CASH",
+          note: safeTrim(input.note),
           paidAt,
         },
         include: { invoice: true },
@@ -66,8 +67,8 @@ export class PaymentService {
     id: string,
     input: {
       amount?: number;
-      method?: string;
-      note?: string;
+      method?: string | null;
+      note?: string | null;
       paidAt?: string;
       paymentDate?: string;
     },
@@ -89,8 +90,10 @@ export class PaymentService {
         where: { id },
         data: {
           amount: nextAmount,
-          ...(input.method !== undefined ? { method: input.method.trim().toUpperCase() } : {}),
-          ...(input.note !== undefined ? { note: input.note.trim() } : {}),
+          ...(input.method !== undefined
+            ? { method: safeUpper(input.method, "CASH") || "CASH" }
+            : {}),
+          ...(input.note !== undefined ? { note: safeTrim(input.note) } : {}),
           ...(input.paidAt !== undefined || input.paymentDate !== undefined
             ? { paidAt: new Date(input.paidAt || input.paymentDate || Date.now()) }
             : {}),

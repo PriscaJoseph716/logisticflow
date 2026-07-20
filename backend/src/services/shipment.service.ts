@@ -1,5 +1,6 @@
 import { prisma } from "../config/database.js";
 import { AppError } from "../utils/app-error.js";
+import { safeTrim, safeUpper } from "../utils/json.js";
 
 const shipmentInclude = {
   customer: true,
@@ -37,7 +38,7 @@ export class ShipmentService {
       scheduledDate?: string | null;
     },
   ) {
-    const shipmentCode = input.shipmentCode?.trim();
+    const shipmentCode = safeTrim(input.shipmentCode);
     if (!shipmentCode) throw new AppError("shipmentCode is required.");
 
     await this.assertRelations(businessId, input);
@@ -50,11 +51,11 @@ export class ShipmentService {
         customerId: input.customerId || null,
         vehicleId: input.vehicleId || null,
         driverId: input.driverId || null,
-        origin: input.origin?.trim() ?? "",
-        destination: input.destination?.trim() ?? "",
+        origin: safeTrim(input.origin),
+        destination: safeTrim(input.destination),
         quantityTons: Number(input.quantityTons ?? 0),
-        status: (input.status ?? "PENDING").trim().toUpperCase(),
-        deliveryStatus: (input.deliveryStatus ?? "SCHEDULED").trim().toUpperCase(),
+        status: safeUpper(input.status, "PENDING") || "PENDING",
+        deliveryStatus: safeUpper(input.deliveryStatus, "SCHEDULED") || "SCHEDULED",
         scheduledDate: input.scheduledDate ? new Date(input.scheduledDate) : null,
       },
       include: shipmentInclude,
@@ -87,25 +88,29 @@ export class ShipmentService {
     await this.assertRelations(businessId, input);
 
     const nextStatus =
-      input.status !== undefined ? input.status.trim().toUpperCase() : existing.status;
+      input.status !== undefined
+        ? safeUpper(input.status, existing.status) || existing.status
+        : existing.status;
 
     const shipment = await prisma.$transaction(async (tx) => {
       const updated = await tx.shipment.update({
         where: { id },
         data: {
-          ...(input.shipmentCode !== undefined ? { shipmentCode: input.shipmentCode.trim() } : {}),
+          ...(input.shipmentCode !== undefined
+            ? { shipmentCode: safeTrim(input.shipmentCode) }
+            : {}),
           ...(input.supplierId !== undefined ? { supplierId: input.supplierId || null } : {}),
           ...(input.customerId !== undefined ? { customerId: input.customerId || null } : {}),
           ...(input.vehicleId !== undefined ? { vehicleId: input.vehicleId || null } : {}),
           ...(input.driverId !== undefined ? { driverId: input.driverId || null } : {}),
-          ...(input.origin !== undefined ? { origin: input.origin.trim() } : {}),
-          ...(input.destination !== undefined ? { destination: input.destination.trim() } : {}),
+          ...(input.origin !== undefined ? { origin: safeTrim(input.origin) } : {}),
+          ...(input.destination !== undefined ? { destination: safeTrim(input.destination) } : {}),
           ...(input.quantityTons !== undefined
             ? { quantityTons: Number(input.quantityTons) }
             : {}),
           ...(input.status !== undefined ? { status: nextStatus } : {}),
           ...(input.deliveryStatus !== undefined
-            ? { deliveryStatus: input.deliveryStatus.trim().toUpperCase() }
+            ? { deliveryStatus: safeUpper(input.deliveryStatus, "SCHEDULED") || "SCHEDULED" }
             : {}),
           ...(input.scheduledDate !== undefined
             ? { scheduledDate: input.scheduledDate ? new Date(input.scheduledDate) : null }

@@ -4067,7 +4067,7 @@ function App() {
           />
         </section>
 
-        <section className="feature-grid">
+        <section className="settings-forms">
           <div className="glass-card settings-card">
             <div className="section-row">
               <div className="settings-title">
@@ -4174,7 +4174,7 @@ function App() {
               </section>
             ) : null}
 
-            <section className="feature-grid">
+            <section className="settings-forms">
               <form className="glass-card settings-card" onSubmit={handleCreateWorker}>
                 <div className="settings-title">
                   <UserPlus size={18} />

@@ -1136,10 +1136,14 @@ textarea {
 .info-card,
 .payment-card,
 .chart-card,
-.settings-card,
 .activity-card {
   border-radius: 24px;
   padding: 22px;
+}
+
+.settings-card {
+  border-radius: 18px;
+  padding: 16px 18px;
 }
 
 .stat-card {
@@ -1846,13 +1850,61 @@ textarea {
 
 .settings-card {
   display: grid;
-  gap: 20px;
+  gap: 14px;
+  padding: 16px 18px;
+  border-radius: 18px;
+  align-content: start;
+}
+
+.settings-forms {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+
+.settings-forms .settings-card {
+  min-width: 0;
+  width: 100%;
+}
+
+.settings-card label {
+  gap: 6px;
+  font-size: 0.84rem;
+}
+
+.settings-card input,
+.settings-card select,
+.settings-card textarea {
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-size: 0.92rem;
+}
+
+.settings-card .form-grid {
+  gap: 12px;
+}
+
+.settings-card .button {
+  width: fit-content;
+  padding: 10px 14px;
+  border-radius: 12px;
+}
+
+.settings-card .empty-state {
+  min-height: 140px;
+  padding: 18px;
+  border-radius: 16px;
+}
+
+.settings-card .permission-chip-row {
+  gap: 8px;
 }
 
 .muted-copy {
   margin: 0;
   color: var(--text-muted, #5f6672);
-  font-size: 0.92rem;
+  font-size: 0.88rem;
   line-height: 1.45;
 }
 
@@ -2152,6 +2204,10 @@ textarea {
     grid-template-columns: 1fr;
   }
 
+  .settings-forms {
+    grid-template-columns: 1fr 1fr;
+  }
+
   .maintenance-summary-grid {
     grid-template-columns: 1fr 1fr;
   }
@@ -2237,10 +2293,11 @@ textarea {
   .chart-card,
   .settings-card,
   .activity-card {
-    padding: 18px;
-    border-radius: 20px;
+    padding: 14px 16px;
+    border-radius: 16px;
   }
 
+  .settings-forms,
   .stats-grid,
   .stats-grid.compact,
   .maintenance-summary-grid,
@@ -2252,6 +2309,14 @@ textarea {
     grid-template-columns: 1fr;
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .settings-card .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-card .button {
+    width: 100%;
   }
 
   .maintenance-summary-grid .summary-highlight:first-of-type {

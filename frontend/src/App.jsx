@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertCircle,
   BadgeAlert,
@@ -1275,31 +1275,23 @@ function ConfirmDialog({
   );
 }
 
-function Modal({
-  title,
-  children,
-  onClose,
-  onSave,
-  saveLabel = "Save",
-  cancelLabel = "Cancel",
-  saving = false,
-}) {
+function Modal({ title, children, onClose, onSave, saveLabel = "Save", cancelLabel = "Cancel" }) {
   return (
-    <div className="modal-backdrop" role="presentation" onClick={saving ? undefined : onClose}>
+    <div className="modal-backdrop" role="presentation" onClick={onClose}>
       <div className="modal-card glass-elevated" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
         <div className="modal-header">
           <h3>{title}</h3>
-          <button type="button" className="icon-button muted" onClick={onClose} disabled={saving}>
+          <button type="button" className="icon-button muted" onClick={onClose}>
             <X size={16} />
           </button>
         </div>
         <div className="modal-body">{children}</div>
         <div className="modal-footer">
-          <button type="button" className="button secondary" onClick={onClose} disabled={saving}>
+          <button type="button" className="button secondary" onClick={onClose}>
             {cancelLabel}
           </button>
-          <button type="button" className="button primary" onClick={onSave} disabled={saving}>
-            {saving ? (saveLabel === "Hifadhi" || saveLabel === "Hifadhi Mabadiliko" ? "Inahifadhi..." : "Saving...") : saveLabel}
+          <button type="button" className="button primary" onClick={onSave}>
+            {saveLabel}
           </button>
         </div>
       </div>
@@ -1354,8 +1346,8 @@ function App() {
   const [createdWorkerCreds, setCreatedWorkerCreds] = useState(null);
   const [pageLoading, setPageLoading] = useState(false);
   const [fileUploading, setFileUploading] = useState(false);
-  const [modalSaving, setModalSaving] = useState(false);
   const [appData, setAppData] = useState(emptyAppData);
+  const saveInFlightRef = useRef(false);
   const [toast, setToast] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState(null);
   const [deliveryFilter, setDeliveryFilter] = useState("month");
@@ -2077,7 +2069,6 @@ function App() {
     setModal({ type: null });
     setModalForm({});
     setFleetDetailsTab("overview");
-    setModalSaving(false);
   };
 
   const showToast = (message, type = "success") => {
@@ -2543,8 +2534,27 @@ function App() {
     void loadAppData({ silent: true });
   };
 
-  const handleModalSave = async () => {
-    if (modalSaving) return;
+  const softPersist = (request, successMessage, errorFallback) => {
+    if (saveInFlightRef.current) return;
+    saveInFlightRef.current = true;
+    closeModal();
+    showToast(successMessage);
+
+    void (async () => {
+      try {
+        await request();
+        refreshAfterSave();
+      } catch (error) {
+        showToast(getApiErrorMessage(error, errorFallback), "error");
+        refreshAfterSave();
+      } finally {
+        saveInFlightRef.current = false;
+      }
+    })();
+  };
+
+  const handleModalSave = () => {
+    if (saveInFlightRef.current) return;
 
     if (modal.type === "fleet") {
       if (!modalForm.headPlate || !modalForm.trailerPlate || !modalForm.driver || !modalForm.driverPhone || !modalForm.licenseNumber) {
@@ -2552,58 +2562,41 @@ function App() {
         return;
       }
 
-      setModalSaving(true);
-      try {
-        const existingVehicle = appData.fleet.find((item) => item.id === modal.vehicleId);
-        const existingDocs = existingVehicle?.raw?.documentsJson;
-        const documentsJson = {
-          ...(existingDocs && typeof existingDocs === "object" && !Array.isArray(existingDocs)
-            ? existingDocs
-            : {}),
-          ownership: modalForm.ownership,
-          driverName: modalForm.driver,
-          driverPhone: modalForm.driverPhone,
-          licenseNumber: modalForm.licenseNumber,
-          routes: existingVehicle?.routes ?? 0,
-        };
-        const payload = {
-          name: modalForm.headPlate,
-          headPlateNumber: modalForm.headPlate,
-          trailerPlateNumber: modalForm.trailerPlate || null,
-          vehicleType: existingVehicle?.vehicleType ?? "Truck",
-          category: modalForm.ownership ?? "owned",
-          status: String(existingVehicle?.status ?? "ACTIVE").toUpperCase(),
-          mileage: Number(existingVehicle?.mileage ?? 0),
-          fuelLevel: Number(existingVehicle?.fuelLevel ?? 0),
-          fuelType: existingVehicle?.fuelType ?? "",
-          insuranceExpiry: existingVehicle?.insuranceExpiry || null,
-          licenseExpiry: existingVehicle?.licenseExpiry || null,
-          documentsJson,
-        };
+      const existingVehicle = appData.fleet.find((item) => item.id === modal.vehicleId);
+      const existingDocs = existingVehicle?.raw?.documentsJson;
+      const documentsJson = {
+        ...(existingDocs && typeof existingDocs === "object" && !Array.isArray(existingDocs)
+          ? existingDocs
+          : {}),
+        ownership: modalForm.ownership,
+        driverName: modalForm.driver,
+        driverPhone: modalForm.driverPhone,
+        licenseNumber: modalForm.licenseNumber,
+        routes: existingVehicle?.routes ?? 0,
+      };
+      const payload = {
+        name: modalForm.headPlate,
+        headPlateNumber: modalForm.headPlate,
+        trailerPlateNumber: modalForm.trailerPlate || null,
+        vehicleType: existingVehicle?.vehicleType ?? "Truck",
+        category: modalForm.ownership ?? "owned",
+        status: String(existingVehicle?.status ?? "ACTIVE").toUpperCase(),
+        mileage: Number(existingVehicle?.mileage ?? 0),
+        fuelLevel: Number(existingVehicle?.fuelLevel ?? 0),
+        fuelType: existingVehicle?.fuelType ?? "",
+        insuranceExpiry: existingVehicle?.insuranceExpiry || null,
+        licenseExpiry: existingVehicle?.licenseExpiry || null,
+        documentsJson,
+      };
 
-        if (modal.mode === "edit" && modal.vehicleId) {
-          await fleetApi.update(modal.vehicleId, payload);
-          closeModal();
-          showToast(t.toast.fleetUpdated);
-          refreshAfterSave();
-          return;
-        }
-
-        await fleetApi.create(payload);
-        closeModal();
-        showToast(t.toast.fleetAdded);
-        refreshAfterSave();
-      } catch (error) {
-        showToast(
-          getApiErrorMessage(
-            error,
-            language === "sw" ? "Imeshindikana kuhifadhi gari." : "Unable to save vehicle. Please try again.",
-          ),
-          "error",
-        );
-      } finally {
-        setModalSaving(false);
-      }
+      softPersist(
+        () =>
+          modal.mode === "edit" && modal.vehicleId
+            ? fleetApi.update(modal.vehicleId, payload)
+            : fleetApi.create(payload),
+        modal.mode === "edit" ? t.toast.fleetUpdated : t.toast.fleetAdded,
+        language === "sw" ? "Imeshindikana kuhifadhi gari." : "Unable to save vehicle. Please try again.",
+      );
       return;
     }
 
@@ -2616,35 +2609,24 @@ function App() {
         return;
       }
 
-      setModalSaving(true);
-      try {
-        const vehicle = appData.fleet.find((item) => getVehiclePrimaryPlate(item) === modalForm.vehicle);
-        await shipmentsApi.create({
-          shipmentCode: `SHP-${Date.now().toString().slice(-6)}`,
-          supplierId: selectedSupplier.entityId,
-          customerId: selectedCustomer.entityId,
-          vehicleId: vehicle?.id || undefined,
-          origin: selectedSupplier.name,
-          destination: selectedCustomer.location,
-          quantityTons: Number(modalForm.quantity),
-          status: "PENDING",
-          deliveryStatus: "SCHEDULED",
-          scheduledDate: new Date().toISOString(),
-        });
-        closeModal();
-        showToast(t.toast.shipmentCreated);
-        refreshAfterSave();
-      } catch (error) {
-        showToast(
-          getApiErrorMessage(
-            error,
-            language === "sw" ? "Imeshindikana kutengeneza mzigo." : "Unable to create shipment. Please try again.",
-          ),
-          "error",
-        );
-      } finally {
-        setModalSaving(false);
-      }
+      const vehicle = appData.fleet.find((item) => getVehiclePrimaryPlate(item) === modalForm.vehicle);
+      softPersist(
+        () =>
+          shipmentsApi.create({
+            shipmentCode: `SHP-${Date.now().toString().slice(-6)}`,
+            supplierId: selectedSupplier.entityId,
+            customerId: selectedCustomer.entityId,
+            vehicleId: vehicle?.id || undefined,
+            origin: selectedSupplier.name,
+            destination: selectedCustomer.location,
+            quantityTons: Number(modalForm.quantity),
+            status: "PENDING",
+            deliveryStatus: "SCHEDULED",
+            scheduledDate: new Date().toISOString(),
+          }),
+        t.toast.shipmentCreated,
+        language === "sw" ? "Imeshindikana kutengeneza mzigo." : "Unable to create shipment. Please try again.",
+      );
       return;
     }
 
@@ -2654,41 +2636,24 @@ function App() {
         return;
       }
 
-      setModalSaving(true);
-      try {
-        const payload = {
-          customerCode: modal.mode === "edit" ? modalForm.id : generateNextCustomerId(appData.customers),
-          name: modalForm.name,
-          phone: modalForm.phone,
-          location: modalForm.location,
-          email: modalForm.email || null,
-          contactPerson: modalForm.contactPerson || null,
-          notes: modalForm.notes || null,
-        };
+      const payload = {
+        customerCode: modal.mode === "edit" ? modalForm.id : generateNextCustomerId(appData.customers),
+        name: modalForm.name,
+        phone: modalForm.phone,
+        location: modalForm.location,
+        email: modalForm.email || null,
+        contactPerson: modalForm.contactPerson || null,
+        notes: modalForm.notes || null,
+      };
 
-        if (modal.mode === "edit" && modal.customerId) {
-          await customersApi.update(modal.customerId, payload);
-          closeModal();
-          showToast(t.toast.customerUpdated);
-          refreshAfterSave();
-          return;
-        }
-
-        await customersApi.create(payload);
-        closeModal();
-        showToast(t.toast.customerAdded);
-        refreshAfterSave();
-      } catch (error) {
-        showToast(
-          getApiErrorMessage(
-            error,
-            language === "sw" ? "Imeshindikana kuhifadhi mteja." : "Unable to save customer. Please try again.",
-          ),
-          "error",
-        );
-      } finally {
-        setModalSaving(false);
-      }
+      softPersist(
+        () =>
+          modal.mode === "edit" && modal.customerId
+            ? customersApi.update(modal.customerId, payload)
+            : customersApi.create(payload),
+        modal.mode === "edit" ? t.toast.customerUpdated : t.toast.customerAdded,
+        language === "sw" ? "Imeshindikana kuhifadhi mteja." : "Unable to save customer. Please try again.",
+      );
       return;
     }
 
@@ -2698,40 +2663,23 @@ function App() {
         return;
       }
 
-      setModalSaving(true);
-      try {
-        const payload = {
-          supplierCode: modal.mode === "edit" ? modalForm.id : generateNextSupplierId(appData.suppliers),
-          name: modalForm.name,
-          contact: modalForm.phone,
-          location: modalForm.location,
-          buyingPrice: Number(modalForm.buyingPrice),
-          sellingPrice: Number(modalForm.sellingPrice),
-        };
+      const payload = {
+        supplierCode: modal.mode === "edit" ? modalForm.id : generateNextSupplierId(appData.suppliers),
+        name: modalForm.name,
+        contact: modalForm.phone,
+        location: modalForm.location,
+        buyingPrice: Number(modalForm.buyingPrice),
+        sellingPrice: Number(modalForm.sellingPrice),
+      };
 
-        if (modal.mode === "edit" && modal.supplierId) {
-          await suppliersApi.update(modal.supplierId, payload);
-          closeModal();
-          showToast(t.toast.supplierUpdated);
-          refreshAfterSave();
-          return;
-        }
-
-        await suppliersApi.create(payload);
-        closeModal();
-        showToast(t.toast.supplierAdded);
-        refreshAfterSave();
-      } catch (error) {
-        showToast(
-          getApiErrorMessage(
-            error,
-            language === "sw" ? "Imeshindikana kuhifadhi msambazaji." : "Unable to save supplier. Please try again.",
-          ),
-          "error",
-        );
-      } finally {
-        setModalSaving(false);
-      }
+      softPersist(
+        () =>
+          modal.mode === "edit" && modal.supplierId
+            ? suppliersApi.update(modal.supplierId, payload)
+            : suppliersApi.create(payload),
+        modal.mode === "edit" ? t.toast.supplierUpdated : t.toast.supplierAdded,
+        language === "sw" ? "Imeshindikana kuhifadhi msambazaji." : "Unable to save supplier. Please try again.",
+      );
       return;
     }
 
@@ -2741,67 +2689,53 @@ function App() {
         return;
       }
 
-      setModalSaving(true);
-      try {
-        const payload = {
-          vehicleId: modalForm.vehicleId,
-          maintenanceDate: modalForm.serviceDate,
-          maintenanceType: modalForm.maintenanceType,
-          description: modalForm.description || undefined,
-          workshop: modalForm.workshop,
-          mechanic: modalForm.mechanic,
-          currentMileage: Number(modalForm.currentMileage),
-          laborCost: Number(modalForm.laborCost) || 0,
-          otherCost: Number(modalForm.otherExpenses) || 0,
-          nextServiceDate: modalForm.nextServiceDate || undefined,
-          nextServiceMileage: modalForm.nextServiceMileage ? Number(modalForm.nextServiceMileage) : undefined,
-          status:
-            modalForm.status === "inProgress"
-              ? "IN_PROGRESS"
-              : modalForm.status === "completed"
-                ? "COMPLETED"
-                : modalForm.status === "cancelled"
-                  ? "CANCELLED"
-                  : modalForm.status === "overdue"
-                    ? "OVERDUE"
-                    : "SCHEDULED",
-          parts: (modalForm.parts ?? []).map((part) => ({
-            partName: part.partName,
-            brand: part.brand || undefined,
-            quantity: Number(part.quantity) || 1,
-            unitPrice: Number(part.unitPrice) || 0,
-            supplier: part.supplier || undefined,
-          })),
-          attachments: (modalForm.files ?? []).map((file) => ({
-            category: file.category || "document",
-            fileName: file.fileName ?? file.name,
-            fileUrl: file.fileUrl ?? file.url,
-            mimeType: file.mimeType || undefined,
-          })),
-        };
+      const payload = {
+        vehicleId: modalForm.vehicleId,
+        maintenanceDate: modalForm.serviceDate,
+        maintenanceType: modalForm.maintenanceType,
+        description: modalForm.description || undefined,
+        workshop: modalForm.workshop,
+        mechanic: modalForm.mechanic,
+        currentMileage: Number(modalForm.currentMileage),
+        laborCost: Number(modalForm.laborCost) || 0,
+        otherCost: Number(modalForm.otherExpenses) || 0,
+        nextServiceDate: modalForm.nextServiceDate || undefined,
+        nextServiceMileage: modalForm.nextServiceMileage ? Number(modalForm.nextServiceMileage) : undefined,
+        status:
+          modalForm.status === "inProgress"
+            ? "IN_PROGRESS"
+            : modalForm.status === "completed"
+              ? "COMPLETED"
+              : modalForm.status === "cancelled"
+                ? "CANCELLED"
+                : modalForm.status === "overdue"
+                  ? "OVERDUE"
+                  : "SCHEDULED",
+        parts: (modalForm.parts ?? []).map((part) => ({
+          partName: part.partName,
+          brand: part.brand || undefined,
+          quantity: Number(part.quantity) || 1,
+          unitPrice: Number(part.unitPrice) || 0,
+          supplier: part.supplier || undefined,
+        })),
+        attachments: (modalForm.files ?? []).map((file) => ({
+          category: file.category || "document",
+          fileName: file.fileName ?? file.name,
+          fileUrl: file.fileUrl ?? file.url,
+          mimeType: file.mimeType || undefined,
+        })),
+      };
 
-        if (modal.mode === "edit" && modal.recordId) {
-          await maintenanceApi.update(modal.recordId, payload);
-        } else {
-          await maintenanceApi.create(payload);
-        }
-
-        closeModal();
-        showToast(modal.mode === "edit" ? t.toast.maintenanceUpdated : t.toast.maintenanceSaved);
-        refreshAfterSave();
-      } catch (error) {
-        showToast(
-          getApiErrorMessage(
-            error,
-            language === "sw"
-              ? "Imeshindikana kuhifadhi rekodi ya matengenezo."
-              : "Unable to save maintenance record. Please try again.",
-          ),
-          "error",
-        );
-      } finally {
-        setModalSaving(false);
-      }
+      softPersist(
+        () =>
+          modal.mode === "edit" && modal.recordId
+            ? maintenanceApi.update(modal.recordId, payload)
+            : maintenanceApi.create(payload),
+        modal.mode === "edit" ? t.toast.maintenanceUpdated : t.toast.maintenanceSaved,
+        language === "sw"
+          ? "Imeshindikana kuhifadhi rekodi ya matengenezo."
+          : "Unable to save maintenance record. Please try again.",
+      );
       return;
     }
 
@@ -2812,44 +2746,33 @@ function App() {
         return;
       }
 
-      setModalSaving(true);
-      try {
-        const targetInvoice = appData.payments.find(
-          (payment) => payment.customer === modalForm.customer && payment.paid < payment.total,
-        );
+      const targetInvoice = appData.payments.find(
+        (payment) => payment.customer === modalForm.customer && payment.paid < payment.total,
+      );
 
-        if (!targetInvoice) {
-          showToast(
-            language === "sw"
-              ? "Hakuna ankara inayosubiri malipo kwa mteja huyu."
-              : "No outstanding invoice found for this customer.",
-            "error",
-          );
-          return;
-        }
-
-        await paymentsApi.create({
-          invoiceId: targetInvoice.id,
-          customerId: targetInvoice.customerId || undefined,
-          amount,
-          paymentDate: new Date().toISOString(),
-          method: "BANK_TRANSFER",
-          status: "COMPLETED",
-        });
-        closeModal();
-        showToast(t.toast.paymentRecorded);
-        refreshAfterSave();
-      } catch (error) {
+      if (!targetInvoice) {
         showToast(
-          getApiErrorMessage(
-            error,
-            language === "sw" ? "Imeshindikana kuhifadhi malipo." : "Unable to record payment. Please try again.",
-          ),
+          language === "sw"
+            ? "Hakuna ankara inayosubiri malipo kwa mteja huyu."
+            : "No outstanding invoice found for this customer.",
           "error",
         );
-      } finally {
-        setModalSaving(false);
+        return;
       }
+
+      softPersist(
+        () =>
+          paymentsApi.create({
+            invoiceId: targetInvoice.id,
+            customerId: targetInvoice.customerId || undefined,
+            amount,
+            paymentDate: new Date().toISOString(),
+            method: "BANK_TRANSFER",
+            status: "COMPLETED",
+          }),
+        t.toast.paymentRecorded,
+        language === "sw" ? "Imeshindikana kuhifadhi malipo." : "Unable to record payment. Please try again.",
+      );
     }
   };
 
@@ -4699,7 +4622,6 @@ function App() {
           title={modal.mode === "edit" ? t.modal.editVehicle : t.modal.addVehicle}
           onClose={closeModal}
           onSave={handleModalSave}
-          saving={modalSaving}
           saveLabel={modal.mode === "edit" ? t.common.edit : t.common.save}
           cancelLabel={t.common.cancel}
         >
@@ -4973,7 +4895,7 @@ function App() {
       ) : null}
 
       {modal.type === "shipment" ? (
-        <Modal title={t.modal.createShipment} onClose={closeModal} onSave={handleModalSave} saving={modalSaving} saveLabel={t.common.save} cancelLabel={t.common.cancel}>
+        <Modal title={t.modal.createShipment} onClose={closeModal} onSave={handleModalSave} saveLabel={t.common.save} cancelLabel={t.common.cancel}>
           <div className="form-grid single">
             <label>
               {t.shipments.supplier}
@@ -5019,7 +4941,6 @@ function App() {
           title={modal.mode === "edit" ? t.modal.editCustomer : t.modal.addCustomer}
           onClose={closeModal}
           onSave={handleModalSave}
-          saving={modalSaving}
           saveLabel={modal.mode === "edit" ? t.common.edit : t.common.save}
           cancelLabel={t.common.cancel}
         >
@@ -5051,7 +4972,6 @@ function App() {
           title={modal.mode === "edit" ? t.modal.editSupplier : t.modal.addSupplier}
           onClose={closeModal}
           onSave={handleModalSave}
-          saving={modalSaving}
           saveLabel={modal.mode === "edit" ? t.common.edit : t.common.save}
           cancelLabel={t.common.cancel}
         >
@@ -5087,7 +5007,7 @@ function App() {
       ) : null}
 
       {modal.type === "payment" ? (
-        <Modal title={t.modal.recordPayment} onClose={closeModal} onSave={handleModalSave} saving={modalSaving} saveLabel={t.common.save} cancelLabel={t.common.cancel}>
+        <Modal title={t.modal.recordPayment} onClose={closeModal} onSave={handleModalSave} saveLabel={t.common.save} cancelLabel={t.common.cancel}>
           <div className="form-grid single">
             <label>
               {t.modal.customer}
@@ -5112,7 +5032,6 @@ function App() {
           title={modal.mode === "edit" ? t.common.edit : t.maintenance.addMaintenance}
           onClose={closeModal}
           onSave={handleModalSave}
-          saving={modalSaving}
           saveLabel={t.maintenance.saveRecord}
           cancelLabel={t.common.cancel}
         >

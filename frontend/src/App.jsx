@@ -1313,19 +1313,26 @@ function App() {
   useEffect(() => {
     if (typeof window === "undefined") return undefined;
 
+    let wasMobile = window.innerWidth <= 820;
+
     const handleResize = () => {
       const mobile = window.innerWidth <= 820;
+
+      // Ignore height-only changes (mobile browser chrome show/hide while scrolling).
+      if (mobile === wasMobile) return;
+
+      wasMobile = mobile;
       setIsMobileSidebar(mobile);
 
       if (mobile) {
         setSidebarOpen(false);
+        setMobileSidebarOpen(false);
       } else {
         setMobileSidebarOpen(false);
         setSidebarOpen(true);
       }
     };
 
-    handleResize();
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);

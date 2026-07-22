@@ -98,7 +98,7 @@ export function mapShipmentRecord(record) {
     customer: record.customer?.name ?? "Unassigned customer",
     destination: record.destination,
     quantity: record.quantityTons ?? 0,
-    unit: "tons",
+    unit: "bags",
     vehicle: record.vehicle?.headPlateNumber ?? "Unassigned vehicle",
     vehicleId: record.vehicleId ?? "",
     driverId: record.driverId ?? "",
@@ -119,7 +119,7 @@ export function mapDeliveryRecord(record) {
     destination: record.shipment?.destination ?? "Unknown destination",
     vehicle: record.vehicle?.headPlateNumber ?? record.shipment?.vehicle?.headPlateNumber ?? "Unassigned vehicle",
     quantity: record.shipment?.quantityTons ?? 0,
-    unit: "tons",
+    unit: "bags",
     status: record.status === "COMPLETED" ? "delivered" : normalizeShipmentStatus(record.status),
     raw: record,
   };

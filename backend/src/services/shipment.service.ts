@@ -2,6 +2,9 @@ import { prisma } from "../config/database.js";
 import { AppError } from "../utils/app-error.js";
 import { safeTrim, safeUpper } from "../utils/json.js";
 
+/** One full truck/car load of cement bags. Supplier prices are for this whole load. */
+export const BAGS_PER_TRUCK_LOAD = 600;
+
 const shipmentInclude = {
   customer: true,
   supplier: true,
@@ -11,6 +14,22 @@ const shipmentInclude = {
 
 function codeSuffix(id: string) {
   return id.replace(/-/g, "").slice(-6).toUpperCase();
+}
+
+/**
+ * Supplier buying/selling price is for one full truck (600 bags).
+ * Invoice amount = (bags / 600) × truck selling price.
+ */
+export function calculateTruckLoadInvoiceAmount(
+  quantityBags: number,
+  truckSellingPrice: number,
+  bagsPerTruck = BAGS_PER_TRUCK_LOAD,
+) {
+  const bags = Number(quantityBags);
+  const price = Number(truckSellingPrice);
+  if (!Number.isFinite(bags) || bags <= 0) return 0;
+  if (!Number.isFinite(price) || price <= 0) return 0;
+  return (bags / bagsPerTruck) * price;
 }
 
 export class ShipmentService {
@@ -142,8 +161,8 @@ export class ShipmentService {
         }
 
         if (existing.invoices.length === 0) {
-          const unitPrice = supplier?.sellingPrice || 0;
-          const totalAmount = quantityTons * (unitPrice || 100000);
+          const truckPrice = supplier?.sellingPrice || 0;
+          const totalAmount = calculateTruckLoadInvoiceAmount(quantityTons, truckPrice);
           const dueDate = new Date();
           dueDate.setDate(dueDate.getDate() + 14);
 

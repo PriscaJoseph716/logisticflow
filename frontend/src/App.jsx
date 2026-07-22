@@ -308,12 +308,13 @@ const translations = {
       shipmentsCount: "Shipments",
     },
     suppliers: {
-      intro: "Manage cement suppliers and industry pricing.",
+      intro: "Manage cement suppliers and full-truck industry pricing.",
       addSupplier: "Add Supplier",
       editSupplier: "Edit Supplier",
       supplierId: "ID",
-      buyingPrice: "Buying Price",
-      sellingPrice: "Selling Price",
+      buyingPrice: "Buying Price (per truck)",
+      sellingPrice: "Selling Price (per truck)",
+      priceHint: "Price is for one full truck load of 600 bags, not per bag.",
     },
     maintenance: {
       intro: "Track servicing, repairs, parts, workshops, and vehicle health in one place.",
@@ -648,15 +649,15 @@ const translations = {
       licenseNumber: "License number",
       origin: "Origin",
       destination: "Destination",
-      quantity: "Quantity",
+      quantity: "Quantity (bags)",
       vehicle: "Vehicle",
       customer: "Customer",
       supplier: "Supplier",
       amount: "Amount",
       location: "Location",
       phone: "Phone",
-      buyingPrice: "Buying Price",
-      sellingPrice: "Selling Price",
+      buyingPrice: "Buying price (per truck / 600 bags)",
+      sellingPrice: "Selling price (per truck / 600 bags)",
       maintenanceVehicle: "Vehicle",
       maintenanceDate: "Maintenance Date",
       currentMileage: "Current Mileage",
@@ -910,12 +911,13 @@ const translations = {
       shipmentsCount: "Mizigo",
     },
     suppliers: {
-      intro: "Simamia wasambazaji wa saruji na bei zao.",
+      intro: "Simamia wasambazaji wa saruji na bei ya lori kamili.",
       addSupplier: "Ongeza Msambazaji",
       editSupplier: "Hariri Msambazaji",
       supplierId: "ID",
-      buyingPrice: "Bei ya kununua",
-      sellingPrice: "Bei ya kuuza",
+      buyingPrice: "Bei ya kununua (kwa lori)",
+      sellingPrice: "Bei ya kuuza (kwa lori)",
+      priceHint: "Bei ni kwa lori moja kamili ya mifuko 600, si kwa mfuko mmoja.",
     },
     maintenance: {
       intro: "Fuatilia service, marekebisho, vipuri, karakana, na afya ya gari sehemu moja.",
@@ -1250,15 +1252,15 @@ const translations = {
       licenseNumber: "Namba ya leseni",
       origin: "Mwanzo",
       destination: "Mwisho",
-      quantity: "Kiasi",
+      quantity: "Kiasi (mifuko)",
       vehicle: "Gari",
       customer: "Mteja",
       supplier: "Msambazaji",
       amount: "Kiasi cha fedha",
       location: "Mahali",
       phone: "Simu",
-      buyingPrice: "Bei ya kununua",
-      sellingPrice: "Bei ya kuuza",
+      buyingPrice: "Bei ya kununua (kwa lori / mifuko 600)",
+      sellingPrice: "Bei ya kuuza (kwa lori / mifuko 600)",
       maintenanceVehicle: "Gari",
       maintenanceDate: "Tarehe ya Matengenezo",
       currentMileage: "Mita za Sasa",
@@ -3881,7 +3883,7 @@ function App() {
               destination: updated.destination,
               vehicle: updated.vehicle,
               quantity: updated.quantity,
-              unit: updated.unit ?? "tons",
+              unit: updated.unit ?? "bags",
               status: "delivered",
               raw: { shipmentId: id },
             },
@@ -4637,6 +4639,7 @@ function App() {
                 </span>
                 <span>{t.suppliers.buyingPrice}: {formatMoney(supplier.buyingPrice, language)}</span>
                 <span>{t.suppliers.sellingPrice}: {formatMoney(supplier.sellingPrice, language)}</span>
+                <span className="supplier-price-hint">{t.suppliers.priceHint}</span>
               </div>
             </article>
           ))
@@ -6060,7 +6063,8 @@ function App() {
             </label>
             <label>
               {t.modal.quantity}
-              <input name="quantity" type="number" value={modalForm.quantity ?? ""} onChange={updateForm} placeholder="120" />
+              <input name="quantity" type="number" value={modalForm.quantity ?? ""} onChange={updateForm} placeholder="600" />
+              <span className="field-hint">{language === "sw" ? "Mifuko (lori kamili = 600)" : "Bags (1 full truck = 600)"}</span>
             </label>
             <label>
               {t.shipments.assignVehicle}
@@ -6138,10 +6142,12 @@ function App() {
             <label>
               {t.modal.buyingPrice}
               <input name="buyingPrice" type="number" value={modalForm.buyingPrice ?? ""} onChange={updateForm} placeholder="120000" />
+              <span className="field-hint">{t.suppliers.priceHint}</span>
             </label>
             <label>
               {t.modal.sellingPrice}
               <input name="sellingPrice" type="number" value={modalForm.sellingPrice ?? ""} onChange={updateForm} placeholder="145000" />
+              <span className="field-hint">{t.suppliers.priceHint}</span>
             </label>
           </div>
         </Modal>

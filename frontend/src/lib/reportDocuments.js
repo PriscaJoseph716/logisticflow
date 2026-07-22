@@ -128,7 +128,6 @@ export function buildSectorRows(sectorId, items, labels = {}) {
       }));
     case "customers":
       return items.map((item) => ({
-        [labels.id || "ID"]: item.id || "",
         [labels.name || "Name"]: item.name || "",
         [labels.phone || "Phone"]: item.phone || "",
         [labels.location || "Location"]: item.location || "",

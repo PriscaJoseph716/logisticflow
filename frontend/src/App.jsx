@@ -44,6 +44,12 @@ import Sidebar from "./components/Sidebar";
 import MobileNav from "./components/MobileNav";
 import BootSplash from "./components/auth/BootSplash";
 import SignUpPage from "./components/auth/SignUpPage";
+import MaintenanceFormModal, {
+  createEmptyMaintenanceDetails,
+  createEmptyMaintenancePart,
+  MAINTENANCE_FORM_STATUS_KEYS,
+  MAINTENANCE_FORM_TYPE_KEYS,
+} from "./components/maintenance/MaintenanceFormModal";
 import { emptyAppData, navigation } from "./data/appConfig";
 import {
   buildBillDocument,
@@ -362,6 +368,87 @@ const translations = {
       accidentRepair: "Accident Repair",
       generalService: "General Service",
       other: "Other",
+      engineRepair: "Engine Repair",
+      airConditioning: "Air Conditioning",
+      formIntro: "Capture a complete service record for your fleet.",
+      sectionVehicle: "Vehicle information",
+      sectionVehicleText: "Select the vehicle and service basics.",
+      sectionDetails: "Maintenance details",
+      sectionDetailsText: "Describe the work and set priority.",
+      sectionParts: "Parts replaced",
+      sectionPartsText: "Add every part used on this job.",
+      sectionCosts: "Cost summary",
+      sectionCostsText: "Totals update automatically as you type.",
+      sectionAttachments: "Attachments",
+      sectionAttachmentsText: "Upload invoices, receipts, and photos.",
+      sectionNotes: "Notes",
+      sectionNotesText: "Extra context for technicians and auditors.",
+      vehicleSearch: "Search vehicles",
+      vehicleSearchPlaceholder: "Search by plate or driver",
+      selectVehicle: "Select a vehicle",
+      plateAutoFill: "Auto-filled from vehicle",
+      odometer: "Odometer reading",
+      odometerPlaceholder: "e.g. 120000",
+      mechanicPlaceholder: "Lead mechanic name",
+      workshopOptional: "Workshop",
+      workshopPlaceholder: "Workshop or garage name",
+      optional: "Optional",
+      priority: "Priority",
+      descriptionPlaceholder: "Describe the maintenance work completed.",
+      selectOption: "Select an option",
+      tyreDetails: "Tyre replacement details",
+      tyrePosition: "Tyre position",
+      tyreSerialNumber: "Tyre serial number",
+      tyreSerialPlaceholder: "Serial / DOT code",
+      tyreSize: "Tyre size",
+      tyreSizePlaceholder: "e.g. 295/80R22.5",
+      tyreManufacturer: "Manufacturer",
+      tyreManufacturerPlaceholder: "e.g. Michelin",
+      expectedReplacementMileage: "Expected replacement mileage",
+      expectedMileagePlaceholder: "e.g. 180000",
+      batteryDetails: "Battery replacement details",
+      batteryBrand: "Battery brand",
+      batteryBrandPlaceholder: "e.g. Bosch",
+      batterySerialNumber: "Battery serial number",
+      batterySerialPlaceholder: "Serial number",
+      batteryCapacityAh: "Capacity (Ah)",
+      batteryCapacityPlaceholder: "e.g. 100",
+      batteryWarranty: "Warranty",
+      batteryWarrantyPlaceholder: "e.g. 18 months",
+      oilDetails: "Oil change details",
+      oilBrand: "Oil brand",
+      oilBrandPlaceholder: "e.g. Shell",
+      oilGrade: "Oil grade",
+      oilGradePlaceholder: "e.g. 15W-40",
+      oilQuantityLitres: "Quantity (litres)",
+      oilQuantityPlaceholder: "e.g. 8",
+      brakeDetails: "Brake service details",
+      brakePosition: "Brake position",
+      brakePositionPlaceholder: "e.g. Front axle",
+      brakeBrand: "Brand",
+      brakeBrandPlaceholder: "e.g. Bendix",
+      part: "Part",
+      removePart: "Remove",
+      partNamePlaceholder: "e.g. Oil filter",
+      partNumber: "Part number / SKU",
+      partNumberPlaceholder: "SKU or part number",
+      brandPlaceholder: "Brand name",
+      autoCalculated: "Auto calculated",
+      grandTotal: "Grand total",
+      dropFiles: "Drop files here or click to upload",
+      dropFilesHint: "Invoice, receipt, or maintenance photos",
+      uploading: "Uploading…",
+      remove: "Remove",
+      notesPlaceholder: "Additional notes for the service team…",
+      saveMaintenance: "Save Maintenance",
+      priorityLow: "Low",
+      priorityMedium: "Medium",
+      priorityHigh: "High",
+      frontLeft: "Front Left",
+      frontRight: "Front Right",
+      rearLeft: "Rear Left",
+      rearRight: "Rear Right",
+      spare: "Spare",
       alertsTitle: "Service Alerts",
       alertsText: "Upcoming and overdue service reminders.",
       noAlerts: "No maintenance alerts right now.",
@@ -883,6 +970,87 @@ const translations = {
       accidentRepair: "Marekebisho ya Ajali",
       generalService: "Service ya Kawaida",
       other: "Nyingine",
+      engineRepair: "Urekebishaji wa Engine",
+      airConditioning: "Kiyoyozi",
+      formIntro: "Rekodi service kamili kwa magari yako.",
+      sectionVehicle: "Taarifa za gari",
+      sectionVehicleText: "Chagua gari na taarifa za msingi za service.",
+      sectionDetails: "Maelezo ya matengenezo",
+      sectionDetailsText: "Eleza kazi na weka kipaumbele.",
+      sectionParts: "Vipuri vilivyobadilishwa",
+      sectionPartsText: "Ongeza kila kipuri kilichotumika.",
+      sectionCosts: "Muhtasari wa gharama",
+      sectionCostsText: "Jumla inajaza otomatiki unapoandika.",
+      sectionAttachments: "Viambatisho",
+      sectionAttachmentsText: "Pakia ankara, risiti, na picha.",
+      sectionNotes: "Maelezo",
+      sectionNotesText: "Maelezo zaidi kwa fundi na ukaguzi.",
+      vehicleSearch: "Tafuta magari",
+      vehicleSearchPlaceholder: "Tafuta kwa namba au dereva",
+      selectVehicle: "Chagua gari",
+      plateAutoFill: "Inajaza otomatiki kutoka gari",
+      odometer: "Usomaji wa odometer",
+      odometerPlaceholder: "mf. 120000",
+      mechanicPlaceholder: "Jina la fundi",
+      workshopOptional: "Warsha",
+      workshopPlaceholder: "Jina la warsha",
+      optional: "Si lazima",
+      priority: "Kipaumbele",
+      descriptionPlaceholder: "Eleza kazi ya matengenezo iliyofanywa.",
+      selectOption: "Chagua",
+      tyreDetails: "Maelezo ya kubadili tairi",
+      tyrePosition: "Nafasi ya tairi",
+      tyreSerialNumber: "Namba ya serial ya tairi",
+      tyreSerialPlaceholder: "Serial / DOT",
+      tyreSize: "Ukubwa wa tairi",
+      tyreSizePlaceholder: "mf. 295/80R22.5",
+      tyreManufacturer: "Mtengenezaji",
+      tyreManufacturerPlaceholder: "mf. Michelin",
+      expectedReplacementMileage: "Mita zinazotarajiwa za kubadili",
+      expectedMileagePlaceholder: "mf. 180000",
+      batteryDetails: "Maelezo ya kubadili battery",
+      batteryBrand: "Brand ya battery",
+      batteryBrandPlaceholder: "mf. Bosch",
+      batterySerialNumber: "Serial ya battery",
+      batterySerialPlaceholder: "Namba ya serial",
+      batteryCapacityAh: "Uwezo (Ah)",
+      batteryCapacityPlaceholder: "mf. 100",
+      batteryWarranty: "Dhamana",
+      batteryWarrantyPlaceholder: "mf. miezi 18",
+      oilDetails: "Maelezo ya kubadili oil",
+      oilBrand: "Brand ya oil",
+      oilBrandPlaceholder: "mf. Shell",
+      oilGrade: "Grade ya oil",
+      oilGradePlaceholder: "mf. 15W-40",
+      oilQuantityLitres: "Kiasi (lita)",
+      oilQuantityPlaceholder: "mf. 8",
+      brakeDetails: "Maelezo ya service ya brake",
+      brakePosition: "Nafasi ya brake",
+      brakePositionPlaceholder: "mf. Axle ya mbele",
+      brakeBrand: "Brand",
+      brakeBrandPlaceholder: "mf. Bendix",
+      part: "Kipuri",
+      removePart: "Ondoa",
+      partNamePlaceholder: "mf. Oil filter",
+      partNumber: "Namba ya kipuri / SKU",
+      partNumberPlaceholder: "SKU au namba ya kipuri",
+      brandPlaceholder: "Jina la brand",
+      autoCalculated: "Inahesabiwa otomatiki",
+      grandTotal: "Jumla kuu",
+      dropFiles: "Buruta faili hapa au bofya kupakia",
+      dropFilesHint: "Ankara, risiti, au picha za matengenezo",
+      uploading: "Inapakia…",
+      remove: "Ondoa",
+      notesPlaceholder: "Maelezo zaidi kwa timu ya service…",
+      saveMaintenance: "Hifadhi Matengenezo",
+      priorityLow: "Chini",
+      priorityMedium: "Wastani",
+      priorityHigh: "Juu",
+      frontLeft: "Mbele Kushoto",
+      frontRight: "Mbele Kulia",
+      rearLeft: "Nyuma Kushoto",
+      rearRight: "Nyuma Kulia",
+      spare: "Spare",
       alertsTitle: "Tahadhari za Service",
       alertsText: "Vikumbusho vya service inayokuja au iliyochelewa.",
       noAlerts: "Hakuna tahadhari za matengenezo kwa sasa.",
@@ -1233,31 +1401,16 @@ function generateNextSupplierId(suppliers) {
 }
 
 const maintenanceTypeKeys = [
-  "oilChange",
+  ...MAINTENANCE_FORM_TYPE_KEYS,
   "engineService",
-  "brakeService",
-  "batteryReplacement",
-  "tyreReplacement",
   "transmission",
-  "suspension",
-  "electrical",
   "accidentRepair",
-  "generalService",
-  "other",
 ];
 
-const maintenanceStatusKeys = ["pending", "inProgress", "completed", "cancelled"];
+const maintenanceStatusKeys = [...MAINTENANCE_FORM_STATUS_KEYS, "cancelled"];
 
 function createEmptyPart() {
-  return {
-    id: `part-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    partName: "",
-    brand: "",
-    quantity: 1,
-    unitPrice: 0,
-    totalPrice: 0,
-    supplier: "",
-  };
+  return createEmptyMaintenancePart();
 }
 
 function formatChange(value) {
@@ -2553,6 +2706,9 @@ function App() {
       setModalForm({
         vehicleId: firstVehicle?.id ?? "",
         plateNumber: firstVehicle ? getVehiclePlateLabel(firstVehicle) : "",
+        vehicleLabel: firstVehicle
+          ? `${getVehiclePlateLabel(firstVehicle)} - ${firstVehicle.driver}`
+          : "",
         serviceDate: new Date().toISOString().slice(0, 10),
         currentMileage: "",
         workshop: "",
@@ -2565,7 +2721,9 @@ function App() {
         nextServiceDate: "",
         nextServiceMileage: "",
         status: "pending",
+        priority: "medium",
         notes: "",
+        details: createEmptyMaintenanceDetails(),
         parts: [createEmptyPart()],
         files: [],
       });
@@ -2660,7 +2818,18 @@ function App() {
       partsCost: record.partsCost ?? "",
       otherExpenses: record.otherExpenses ?? "",
       nextServiceMileage: record.nextServiceMileage ?? "",
-      parts: (record.parts ?? []).length ? record.parts : [createEmptyPart()],
+      priority: record.priority ?? "medium",
+      notes: record.notes ?? "",
+      details: {
+        ...createEmptyMaintenanceDetails(),
+        ...(record.details || {}),
+      },
+      parts: (record.parts ?? []).length
+        ? record.parts.map((part) => ({
+            ...part,
+            partNumber: part.partNumber || part.supplier || "",
+          }))
+        : [createEmptyPart()],
       files: record.files ?? [],
     });
     setModal({ type: "maintenance", mode: "edit", recordId: record.id });
@@ -3088,10 +3257,8 @@ function App() {
     });
   };
 
-  const handleMaintenanceFiles = async (event) => {
-    const files = Array.from(event.target.files ?? []);
-    event.target.value = "";
-
+  const handleMaintenanceFiles = async (fileList) => {
+    const files = Array.from(fileList ?? []);
     if (!files.length) return;
 
     setFileUploading(true);
@@ -3106,15 +3273,27 @@ function App() {
         ...current,
         files: [
           ...(current.files ?? []),
-          ...uploads.map((file) => ({
-            id: file.id,
-            name: file.fileName,
-            fileName: file.fileName,
-            url: file.fileUrl,
-            fileUrl: file.fileUrl,
-            mimeType: file.mimeType,
-            category: file.category,
-          })),
+          ...uploads.map((file) => {
+            const mime = String(file.mimeType || "").toLowerCase();
+            const name = String(file.fileName || "").toLowerCase();
+            let category = "document";
+            if (mime.startsWith("image/") || name.match(/\.(png|jpe?g|webp|gif)$/)) {
+              category = "photo";
+            } else if (name.includes("receipt")) {
+              category = "receipt";
+            } else if (name.includes("invoice") || name.endsWith(".pdf")) {
+              category = "invoice";
+            }
+            return {
+              id: file.id,
+              name: file.fileName,
+              fileName: file.fileName,
+              url: file.fileUrl,
+              fileUrl: file.fileUrl,
+              mimeType: file.mimeType,
+              category,
+            };
+          }),
         ],
       }));
     } catch (error) {
@@ -3288,7 +3467,6 @@ function App() {
       if (
         !modalForm.vehicleId ||
         !modalForm.serviceDate ||
-        !modalForm.workshop ||
         !modalForm.mechanic ||
         !modalForm.maintenanceType ||
         modalForm.currentMileage === "" ||
@@ -3301,6 +3479,10 @@ function App() {
       const isEdit = modal.mode === "edit";
       const recordId = modal.recordId;
       const selectedVehicle = appData.fleet.find((item) => item.id === modalForm.vehicleId);
+      const details = {
+        ...createEmptyMaintenanceDetails(),
+        ...(modalForm.details || {}),
+      };
       const normalizedStatus =
         modalForm.status === "inProgress"
           ? "IN_PROGRESS"
@@ -3308,9 +3490,7 @@ function App() {
             ? "COMPLETED"
             : modalForm.status === "cancelled"
               ? "CANCELLED"
-              : modalForm.status === "overdue"
-                ? "OVERDUE"
-                : "PENDING";
+              : "PENDING";
 
       const cleanedParts = (modalForm.parts ?? [])
         .filter((part) => String(part.partName || "").trim())
@@ -3322,7 +3502,7 @@ function App() {
           totalPrice:
             Number(part.totalPrice) ||
             (Number(part.quantity) || 1) * (Number(part.unitPrice) || 0),
-          supplier: part.supplier || undefined,
+          supplier: part.partNumber || part.supplier || undefined,
         }));
 
       const cleanedAttachments = (modalForm.files ?? [])
@@ -3334,27 +3514,33 @@ function App() {
         }))
         .filter((file) => file.fileName && file.fileUrl);
 
-      const descriptionText = [modalForm.description, modalForm.notes]
-        .map((value) => String(value || "").trim())
-        .filter(Boolean)
-        .filter((value, index, list) => list.indexOf(value) === index)
-        .join("\n\n");
+      const expectedMileage =
+        modalForm.maintenanceType === "tyreReplacement" && details.expectedReplacementMileage
+          ? Number(details.expectedReplacementMileage)
+          : modalForm.nextServiceMileage
+            ? Number(modalForm.nextServiceMileage)
+            : null;
+
+      const detailsJson = JSON.stringify({
+        priority: modalForm.priority || "medium",
+        notes: String(modalForm.notes || "").trim(),
+        ...details,
+      });
 
       const payload = {
         vehicleId: modalForm.vehicleId,
         maintenanceDate: modalForm.serviceDate,
         maintenanceType: modalForm.maintenanceType,
-        description: descriptionText || "",
-        workshop: modalForm.workshop,
-        mechanic: modalForm.mechanic,
+        description: String(modalForm.description || "").trim(),
+        workshop: String(modalForm.workshop || "").trim(),
+        mechanic: String(modalForm.mechanic || "").trim(),
         currentMileage: Number(modalForm.currentMileage) || 0,
         laborCost: Number(modalForm.laborCost) || 0,
         otherCost: Number(modalForm.otherExpenses) || 0,
         nextServiceDate: modalForm.nextServiceDate || null,
-        nextServiceMileage: modalForm.nextServiceMileage
-          ? Number(modalForm.nextServiceMileage)
-          : null,
+        nextServiceMileage: expectedMileage,
         status: normalizedStatus,
+        detailsJson,
         parts: cleanedParts,
         attachments: cleanedAttachments,
       };
@@ -3370,20 +3556,20 @@ function App() {
           : modalForm.plateNumber || "",
         serviceDate: modalForm.serviceDate,
         maintenanceType: modalForm.maintenanceType,
-        description: descriptionText || "",
-        workshop: modalForm.workshop,
-        mechanic: modalForm.mechanic,
-        currentMileage: Number(modalForm.currentMileage) || 0,
-        laborCost: Number(modalForm.laborCost) || 0,
+        description: payload.description,
+        workshop: payload.workshop,
+        mechanic: payload.mechanic,
+        currentMileage: payload.currentMileage,
+        laborCost: payload.laborCost,
         partsCost: calculatePartsTotal(cleanedParts),
-        otherExpenses: Number(modalForm.otherExpenses) || 0,
+        otherExpenses: payload.otherCost,
         totalCost: calculateMaintenanceTotal({
           laborCost: modalForm.laborCost,
           parts: cleanedParts,
           otherExpenses: modalForm.otherExpenses,
         }),
         nextServiceDate: modalForm.nextServiceDate || "",
-        nextServiceMileage: modalForm.nextServiceMileage || "",
+        nextServiceMileage: expectedMileage || "",
         status:
           modalForm.status === "inProgress"
             ? "inProgress"
@@ -3391,14 +3577,18 @@ function App() {
               ? "completed"
               : modalForm.status === "cancelled"
                 ? "cancelled"
-                : modalForm.status === "overdue"
-                  ? "overdue"
-                  : "pending",
-        notes: "",
+                : "pending",
+        priority: modalForm.priority || "medium",
+        notes: modalForm.notes || "",
+        details,
         parts: cleanedParts.map((part, index) => ({
           id: `local-part-${index}`,
-          ...part,
+          partName: part.partName,
+          partNumber: part.supplier || "",
           brand: part.brand || "",
+          quantity: part.quantity,
+          unitPrice: part.unitPrice,
+          totalPrice: part.totalPrice,
           supplier: part.supplier || "",
         })),
         files: cleanedAttachments.map((file, index) => ({
@@ -6092,152 +6282,125 @@ function App() {
       ) : null}
 
       {modal.type === "maintenance" ? (
-        <Modal
+        <MaintenanceFormModal
           title={modal.mode === "edit" ? t.common.edit : t.maintenance.addMaintenance}
+          form={modalForm}
+          setForm={setModalForm}
+          vehicleOptions={maintenanceVehicleOptions}
+          language={language}
+          formatMoney={formatMoney}
           onClose={closeModal}
           onSave={handleModalSave}
-          saveLabel={t.maintenance.saveRecord}
+          saveLabel={t.maintenance.saveMaintenance}
           cancelLabel={t.common.cancel}
-        >
-          <div className="form-grid single">
-            <label>
-              {t.modal.maintenanceVehicle}
-              <select name="vehicleId" value={modalForm.vehicleId ?? ""} onChange={updateForm}>
-                <option value="">{t.common.all}</option>
-                {maintenanceVehicleOptions.map((vehicle) => (
-                  <option key={vehicle.id} value={vehicle.id}>
-                    {vehicle.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              {t.maintenance.plateNumber}
-              <input value={modalForm.plateNumber ?? ""} readOnly />
-            </label>
-            <label>
-              {t.modal.maintenanceDate}
-              <input type="date" name="serviceDate" value={modalForm.serviceDate ?? ""} onChange={updateForm} />
-            </label>
-            <label>
-              {t.modal.currentMileage}
-              <input type="number" name="currentMileage" value={modalForm.currentMileage ?? ""} onChange={updateForm} placeholder="120000" />
-            </label>
-            <label>
-              {t.modal.workshopName}
-              <input name="workshop" value={modalForm.workshop ?? ""} onChange={updateForm} placeholder="ABC Garage" />
-            </label>
-            <label>
-              {t.modal.mechanicName}
-              <input name="mechanic" value={modalForm.mechanic ?? ""} onChange={updateForm} placeholder="Lead Mechanic" />
-            </label>
-            <label>
-              {t.modal.maintenanceType}
-              <select name="maintenanceType" value={modalForm.maintenanceType ?? "generalService"} onChange={updateForm}>
-                {maintenanceTypeKeys.map((type) => (
-                  <option key={type} value={type}>
-                    {t.maintenance[type]}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              {t.modal.description}
-              <textarea className="form-textarea" name="description" value={modalForm.description ?? ""} onChange={updateForm} placeholder="Describe the maintenance work completed." />
-            </label>
-
-            <div className="maintenance-section">
-              <div className="section-row">
-                <div>
-                  <h3>{t.modal.partsReplaced}</h3>
-                  <p>{t.maintenance.partsReplaced}</p>
-                </div>
-                <button type="button" className="button secondary small" onClick={addMaintenancePart}>
-                  <Plus size={14} />
-                  {t.maintenance.addPart}
-                </button>
-              </div>
-              <div className="maintenance-parts-list">
-                {(modalForm.parts ?? []).map((part) => (
-                  <div key={part.id} className="maintenance-part-row">
-                    <input value={part.partName ?? ""} onChange={(event) => updateMaintenancePart(part.id, "partName", event.target.value)} placeholder={t.maintenance.partName} />
-                    <input value={part.brand ?? ""} onChange={(event) => updateMaintenancePart(part.id, "brand", event.target.value)} placeholder={t.maintenance.brand} />
-                    <input type="number" value={part.quantity ?? 1} onChange={(event) => updateMaintenancePart(part.id, "quantity", event.target.value)} placeholder={t.maintenance.quantity} />
-                    <input type="number" value={part.unitPrice ?? 0} onChange={(event) => updateMaintenancePart(part.id, "unitPrice", event.target.value)} placeholder={t.maintenance.unitPrice} />
-                    <input value={part.totalPrice ?? 0} readOnly placeholder={t.maintenance.totalPrice} />
-                    <button type="button" className="icon-button muted" onClick={() => removeMaintenancePart(part.id)} aria-label={t.common.delete}>
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <label>
-              {t.modal.laborCost}
-              <input type="number" name="laborCost" value={modalForm.laborCost ?? ""} onChange={updateForm} placeholder="0" />
-            </label>
-            <label>
-              {t.modal.partsCost}
-              <input type="number" name="partsCost" value={modalForm.partsCost ?? calculatePartsTotal(modalForm.parts)} onChange={updateForm} placeholder="0" />
-            </label>
-            <label>
-              {t.modal.otherExpenses}
-              <input type="number" name="otherExpenses" value={modalForm.otherExpenses ?? ""} onChange={updateForm} placeholder="0" />
-            </label>
-            <label>
-              {t.modal.totalCost}
-              <input value={formatMoney(calculateMaintenanceTotal(modalForm), language)} readOnly />
-            </label>
-            <label>
-              {t.modal.nextServiceDate}
-              <input type="date" name="nextServiceDate" value={modalForm.nextServiceDate ?? ""} onChange={updateForm} />
-            </label>
-            <label>
-              {t.modal.nextServiceMileage}
-              <input type="number" name="nextServiceMileage" value={modalForm.nextServiceMileage ?? ""} onChange={updateForm} placeholder="125000" />
-            </label>
-            <label>
-              {t.modal.status}
-              <select name="status" value={modalForm.status ?? "pending"} onChange={updateForm} disabled={!canApproveMaintenance && modal.mode === "edit"}>
-                {maintenanceStatusKeys.map((status) => (
-                  <option key={status} value={status}>
-                    {t.maintenance[status]}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              {t.modal.notes}
-              <textarea className="form-textarea" name="notes" value={modalForm.notes ?? ""} onChange={updateForm} placeholder="Additional notes, approvals, or service observations." />
-            </label>
-
-            <div className="maintenance-section">
-              <div className="section-row">
-                <div>
-                  <h3>{t.maintenance.filesUploaded}</h3>
-                  <p>{t.common.files}</p>
-                </div>
-              </div>
-              <label className="upload-dropzone">
-                <Upload size={18} />
-                <span>{t.maintenance.filesUploaded}</span>
-                <input type="file" multiple accept=".pdf,image/*,.csv,.xls,.xlsx" onChange={handleMaintenanceFiles} />
-              </label>
-              <div className="upload-list">
-                {(modalForm.files ?? []).map((file) => (
-                  <div key={file.id} className="upload-chip">
-                    {file.category === "photo" ? <ImageIcon size={14} /> : <Paperclip size={14} />}
-                    <span>{file.name}</span>
-                    <button type="button" className="inline-link danger" onClick={() => removeMaintenanceFile(file.id)}>
-                      {t.common.delete}
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </Modal>
+          uploading={fileUploading}
+          onUploadFiles={handleMaintenanceFiles}
+          onRemoveFile={removeMaintenanceFile}
+          canChangeStatus={canApproveMaintenance || modal.mode === "create" || isOwner}
+          labels={{
+            formIntro: t.maintenance.formIntro,
+            sectionVehicle: t.maintenance.sectionVehicle,
+            sectionVehicleText: t.maintenance.sectionVehicleText,
+            sectionDetails: t.maintenance.sectionDetails,
+            sectionDetailsText: t.maintenance.sectionDetailsText,
+            sectionParts: t.maintenance.sectionParts,
+            sectionPartsText: t.maintenance.sectionPartsText,
+            sectionCosts: t.maintenance.sectionCosts,
+            sectionCostsText: t.maintenance.sectionCostsText,
+            sectionAttachments: t.maintenance.sectionAttachments,
+            sectionAttachmentsText: t.maintenance.sectionAttachmentsText,
+            sectionNotes: t.maintenance.sectionNotes,
+            sectionNotesText: t.maintenance.sectionNotesText,
+            vehicleSearch: t.maintenance.vehicleSearch,
+            vehicleSearchPlaceholder: t.maintenance.vehicleSearchPlaceholder,
+            vehicle: t.maintenance.vehicle,
+            selectVehicle: t.maintenance.selectVehicle,
+            plateNumber: t.maintenance.plateNumber,
+            plateAutoFill: t.maintenance.plateAutoFill,
+            odometer: t.maintenance.odometer,
+            odometerPlaceholder: t.maintenance.odometerPlaceholder,
+            maintenanceDate: t.maintenance.maintenanceDate,
+            mechanic: t.maintenance.mechanic,
+            mechanicPlaceholder: t.maintenance.mechanicPlaceholder,
+            workshopOptional: t.maintenance.workshopOptional,
+            workshopPlaceholder: t.maintenance.workshopPlaceholder,
+            optional: t.maintenance.optional,
+            maintenanceType: t.maintenance.maintenanceType,
+            priority: t.maintenance.priority,
+            status: t.common.status,
+            description: t.maintenance.description,
+            descriptionPlaceholder: t.maintenance.descriptionPlaceholder,
+            selectOption: t.maintenance.selectOption,
+            tyreDetails: t.maintenance.tyreDetails,
+            tyrePosition: t.maintenance.tyrePosition,
+            tyreSerialNumber: t.maintenance.tyreSerialNumber,
+            tyreSerialPlaceholder: t.maintenance.tyreSerialPlaceholder,
+            tyreSize: t.maintenance.tyreSize,
+            tyreSizePlaceholder: t.maintenance.tyreSizePlaceholder,
+            tyreManufacturer: t.maintenance.tyreManufacturer,
+            tyreManufacturerPlaceholder: t.maintenance.tyreManufacturerPlaceholder,
+            expectedReplacementMileage: t.maintenance.expectedReplacementMileage,
+            expectedMileagePlaceholder: t.maintenance.expectedMileagePlaceholder,
+            batteryDetails: t.maintenance.batteryDetails,
+            batteryBrand: t.maintenance.batteryBrand,
+            batteryBrandPlaceholder: t.maintenance.batteryBrandPlaceholder,
+            batterySerialNumber: t.maintenance.batterySerialNumber,
+            batterySerialPlaceholder: t.maintenance.batterySerialPlaceholder,
+            batteryCapacityAh: t.maintenance.batteryCapacityAh,
+            batteryCapacityPlaceholder: t.maintenance.batteryCapacityPlaceholder,
+            batteryWarranty: t.maintenance.batteryWarranty,
+            batteryWarrantyPlaceholder: t.maintenance.batteryWarrantyPlaceholder,
+            oilDetails: t.maintenance.oilDetails,
+            oilBrand: t.maintenance.oilBrand,
+            oilBrandPlaceholder: t.maintenance.oilBrandPlaceholder,
+            oilGrade: t.maintenance.oilGrade,
+            oilGradePlaceholder: t.maintenance.oilGradePlaceholder,
+            oilQuantityLitres: t.maintenance.oilQuantityLitres,
+            oilQuantityPlaceholder: t.maintenance.oilQuantityPlaceholder,
+            brakeDetails: t.maintenance.brakeDetails,
+            brakePosition: t.maintenance.brakePosition,
+            brakePositionPlaceholder: t.maintenance.brakePositionPlaceholder,
+            brakeBrand: t.maintenance.brakeBrand,
+            brakeBrandPlaceholder: t.maintenance.brakeBrandPlaceholder,
+            part: t.maintenance.part,
+            removePart: t.maintenance.removePart,
+            partName: t.maintenance.partName,
+            partNamePlaceholder: t.maintenance.partNamePlaceholder,
+            partNumber: t.maintenance.partNumber,
+            partNumberPlaceholder: t.maintenance.partNumberPlaceholder,
+            brand: t.maintenance.brand,
+            brandPlaceholder: t.maintenance.brandPlaceholder,
+            quantity: t.maintenance.quantity,
+            unitPrice: t.maintenance.unitPrice,
+            totalPrice: t.maintenance.totalPrice,
+            addPart: t.maintenance.addPart,
+            laborCost: t.maintenance.laborCost,
+            partsCost: t.maintenance.partsCost,
+            otherExpenses: t.maintenance.otherExpenses,
+            grandTotal: t.maintenance.grandTotal,
+            autoCalculated: t.maintenance.autoCalculated,
+            dropFiles: t.maintenance.dropFiles,
+            dropFilesHint: t.maintenance.dropFilesHint,
+            uploading: t.maintenance.uploading,
+            remove: t.maintenance.remove,
+            notes: t.modal.notes,
+            notesPlaceholder: t.maintenance.notesPlaceholder,
+            types: Object.fromEntries(MAINTENANCE_FORM_TYPE_KEYS.map((key) => [key, t.maintenance[key] || key])),
+            statuses: Object.fromEntries(MAINTENANCE_FORM_STATUS_KEYS.map((key) => [key, t.maintenance[key] || key])),
+            priorities: {
+              low: t.maintenance.priorityLow,
+              medium: t.maintenance.priorityMedium,
+              high: t.maintenance.priorityHigh,
+            },
+            tyrePositions: {
+              frontLeft: t.maintenance.frontLeft,
+              frontRight: t.maintenance.frontRight,
+              rearLeft: t.maintenance.rearLeft,
+              rearRight: t.maintenance.rearRight,
+              spare: t.maintenance.spare,
+            },
+          }}
+        />
       ) : null}
     </div>
   );

@@ -197,6 +197,7 @@ CREATE TABLE IF NOT EXISTS "MaintenanceRecord" (
   "nextServiceDate" TIMESTAMP(3),
   "nextServiceMileage" INTEGER,
   "status" TEXT NOT NULL DEFAULT 'PENDING',
+  "detailsJson" TEXT NOT NULL DEFAULT '{}',
   "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updatedAt" TIMESTAMP(3) NOT NULL,
   CONSTRAINT "MaintenanceRecord_pkey" PRIMARY KEY ("id")
@@ -205,6 +206,8 @@ CREATE TABLE IF NOT EXISTS "MaintenanceRecord" (
 CREATE INDEX IF NOT EXISTS "MaintenanceRecord_businessId_idx" ON "MaintenanceRecord"("businessId");
 CREATE INDEX IF NOT EXISTS "MaintenanceRecord_vehicleId_idx" ON "MaintenanceRecord"("vehicleId");
 CREATE INDEX IF NOT EXISTS "MaintenanceRecord_status_idx" ON "MaintenanceRecord"("status");
+
+ALTER TABLE "MaintenanceRecord" ADD COLUMN IF NOT EXISTS "detailsJson" TEXT NOT NULL DEFAULT '{}';
 
 CREATE TABLE IF NOT EXISTS "MaintenancePart" (
   "id" TEXT NOT NULL,

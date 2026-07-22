@@ -125,14 +125,27 @@ export function mapDeliveryRecord(record) {
   };
 }
 
+function parseDetailsJson(value) {
+  if (!value) return {};
+  if (typeof value === "object" && !Array.isArray(value)) return value;
+  if (typeof value !== "string") return {};
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
 export function mapMaintenanceRecord(record) {
+  const details = parseDetailsJson(record.detailsJson);
   return {
     id: record.id,
     vehicleId: record.vehicleId,
     vehicleLabel: `${record.vehicle?.headPlateNumber ?? ""}${record.vehicle?.trailerPlateNumber ? ` / ${record.vehicle.trailerPlateNumber}` : ""} - ${record.vehicle?.assignedDriver?.fullName ?? "Unassigned"}`,
     plateNumber: record.vehicle?.headPlateNumber ?? "",
     serviceDate: toDateInput(record.maintenanceDate),
-    maintenanceType: record.maintenanceType,
+    maintenanceType: record.maintenanceType === "engineService" ? "engineRepair" : record.maintenanceType,
     description: record.description ?? "",
     workshop: record.workshop,
     mechanic: record.mechanic,
@@ -144,10 +157,30 @@ export function mapMaintenanceRecord(record) {
     nextServiceDate: toDateInput(record.nextServiceDate),
     nextServiceMileage: record.nextServiceMileage ?? "",
     status: normalizeMaintenanceStatus(record.status),
-    notes: "",
+    priority: fromEnum(details.priority, "medium") || "medium",
+    notes: details.notes ?? "",
+    details: {
+      tyrePosition: details.tyrePosition ?? "",
+      tyreSerialNumber: details.tyreSerialNumber ?? "",
+      tyreSize: details.tyreSize ?? "",
+      tyreManufacturer: details.tyreManufacturer ?? "",
+      expectedReplacementMileage:
+        details.expectedReplacementMileage ??
+        (record.nextServiceMileage != null ? String(record.nextServiceMileage) : ""),
+      batteryBrand: details.batteryBrand ?? "",
+      batterySerialNumber: details.batterySerialNumber ?? "",
+      batteryCapacityAh: details.batteryCapacityAh ?? "",
+      batteryWarranty: details.batteryWarranty ?? "",
+      oilBrand: details.oilBrand ?? "",
+      oilGrade: details.oilGrade ?? "",
+      oilQuantityLitres: details.oilQuantityLitres ?? "",
+      brakePosition: details.brakePosition ?? "",
+      brakeBrand: details.brakeBrand ?? "",
+    },
     parts: (record.parts ?? []).map((part) => ({
       id: part.id,
       partName: part.partName,
+      partNumber: part.supplier ?? "",
       brand: part.brand ?? "",
       quantity: part.quantity ?? 1,
       unitPrice: part.unitPrice ?? 0,

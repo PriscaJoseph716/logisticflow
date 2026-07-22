@@ -1601,6 +1601,235 @@ textarea {
   align-items: center;
 }
 
+.maint-modal-card {
+  width: min(100%, 920px);
+  max-height: calc(100vh - 32px);
+}
+
+.maint-modal-title {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.maint-modal-title h3 {
+  margin: 0;
+}
+
+.maint-modal-title p {
+  margin: 4px 0 0;
+  color: var(--text-muted);
+  font-size: 0.86rem;
+}
+
+.maint-modal-body {
+  display: grid;
+  gap: 16px;
+  padding-top: 8px;
+}
+
+.maint-form-section {
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(79, 124, 255, 0.04), transparent 42%),
+    #fff;
+  overflow: hidden;
+}
+
+.maint-form-section-head {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 16px 18px 0;
+}
+
+.maint-form-section-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  color: var(--blue-deep);
+  background: var(--blue-soft);
+  flex-shrink: 0;
+}
+
+.maint-form-section-head h4 {
+  margin: 0;
+  font-size: 0.98rem;
+  letter-spacing: -0.02em;
+}
+
+.maint-form-section-head p {
+  margin: 3px 0 0;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.maint-form-section-body {
+  padding: 14px 18px 18px;
+  display: grid;
+  gap: 14px;
+}
+
+.maint-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 14px;
+}
+
+.maint-form-grid .maint-field:has(textarea),
+.maint-form-grid.parts-grid .maint-field:first-child {
+  grid-column: 1 / -1;
+}
+
+.maint-field {
+  display: grid;
+  gap: 6px;
+}
+
+.maint-field-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+}
+
+.maint-field-hint {
+  font-style: normal;
+  color: var(--text-soft);
+  font-size: 0.72rem;
+}
+
+.maint-field input,
+.maint-field select,
+.maint-field textarea {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: #fff;
+  color: var(--text);
+}
+
+.maint-field input:focus,
+.maint-field select:focus,
+.maint-field textarea:focus {
+  outline: none;
+  border-color: #a8c0ff;
+  box-shadow: 0 0 0 3px rgba(79, 124, 255, 0.12);
+}
+
+.maint-field input[readonly],
+.maint-grand-total {
+  background: var(--surface-muted);
+  color: var(--text);
+  font-weight: 650;
+}
+
+.maint-search-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0 12px;
+  background: #fff;
+}
+
+.maint-search-wrap input {
+  border: 0;
+  padding: 10px 0;
+  box-shadow: none;
+}
+
+.maint-search-wrap svg {
+  color: var(--text-muted);
+}
+
+.maint-dynamic-panel {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid #e8eefc;
+  background: rgba(79, 124, 255, 0.04);
+}
+
+.maint-dynamic-panel > strong {
+  font-size: 0.86rem;
+}
+
+.maint-parts-stack {
+  display: grid;
+  gap: 12px;
+}
+
+.maint-part-card {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 12px;
+  background: var(--surface-muted);
+  display: grid;
+  gap: 10px;
+}
+
+.maint-part-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.maint-dropzone {
+  position: relative;
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+  text-align: center;
+  padding: 28px 18px;
+  border-radius: 16px;
+  border: 1px dashed #c7d7ff;
+  background: linear-gradient(180deg, rgba(79, 124, 255, 0.06), rgba(255, 255, 255, 0.9));
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.maint-dropzone.active {
+  border-color: var(--blue);
+  background: rgba(79, 124, 255, 0.1);
+}
+
+.maint-dropzone strong {
+  color: var(--text);
+}
+
+.maint-dropzone input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.cost-grid .maint-field:last-child {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 720px) {
+  .maint-form-grid,
+  .maint-form-grid.parts-grid,
+  .cost-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .maint-form-grid .maint-field:has(textarea),
+  .maint-form-grid.parts-grid .maint-field:first-child,
+  .cost-grid .maint-field:last-child {
+    grid-column: auto;
+  }
+}
+
 .upload-dropzone {
   display: grid;
   gap: 8px;

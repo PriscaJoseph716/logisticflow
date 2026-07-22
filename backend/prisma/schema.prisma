@@ -236,6 +236,7 @@ model MaintenanceRecord {
   nextServiceDate    DateTime?
   nextServiceMileage Int?
   status             String                   @default("PENDING")
+  detailsJson        String                   @default("{}")
   parts              MaintenancePart[]
   attachments        MaintenanceAttachment[]
   createdAt          DateTime                 @default(now())

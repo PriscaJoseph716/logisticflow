@@ -150,6 +150,7 @@ export class MaintenanceService {
       nextServiceDate?: string | null;
       nextServiceMileage?: number | null;
       status?: string;
+      detailsJson?: string | null;
       parts?: PartInput[];
       attachments?: AttachmentInput[];
     },
@@ -189,6 +190,7 @@ export class MaintenanceService {
             ? Number(input.nextServiceMileage)
             : null,
         status: normalizeMaintenanceDbStatus(input.status),
+        detailsJson: safeTrim(input.detailsJson, "{}") || "{}",
         parts: { create: parts },
         attachments: { create: attachments },
       },
@@ -212,6 +214,7 @@ export class MaintenanceService {
       nextServiceDate?: string | null;
       nextServiceMileage?: number | null;
       status?: string;
+      detailsJson?: string | null;
       parts?: PartInput[];
       attachments?: AttachmentInput[];
     },
@@ -292,6 +295,9 @@ export class MaintenanceService {
             : {}),
           ...(input.status !== undefined
             ? { status: normalizeMaintenanceDbStatus(input.status) }
+            : {}),
+          ...(input.detailsJson !== undefined
+            ? { detailsJson: safeTrim(input.detailsJson, "{}") || "{}" }
             : {}),
         },
       });

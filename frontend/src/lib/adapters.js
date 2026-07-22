@@ -83,6 +83,7 @@ export function mapSupplierRecord(record) {
     location: record.location ?? "",
     buyingPrice: record.buyingPrice ?? 0,
     sellingPrice: record.sellingPrice ?? 0,
+    profitPerTruck: (record.sellingPrice ?? 0) - (record.buyingPrice ?? 0),
     shipmentsCount: record.shipmentsCount ?? 0,
     raw: record,
   };
@@ -103,6 +104,8 @@ export function mapShipmentRecord(record) {
     vehicleId: record.vehicleId ?? "",
     driver: record.driver?.fullName ?? "Unassigned",
     driverId: record.driverId ?? "",
+    buyingPrice: record.supplier?.buyingPrice ?? 0,
+    sellingPrice: record.supplier?.sellingPrice ?? 0,
     date: toDateInput(record.scheduledDate ?? record.createdAt),
     status: normalizeShipmentStatus(record.status),
     deliveryStatus: fromEnum(record.deliveryStatus),

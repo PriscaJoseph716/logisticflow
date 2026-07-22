@@ -72,6 +72,7 @@ import {
   getSectorItems,
   REPORT_SECTOR_IDS,
 } from "./lib/reportDocuments";
+import { calculateShipmentProfit } from "./lib/truckPricing";
 import { configureApiClient, getApiErrorMessage, getSession, setSession as persistSession, clearSession as clearPersistedSession } from "./lib/apiClient";
 import {
   assignmentsApi,
@@ -228,6 +229,7 @@ const translations = {
       intro: "Everything moving across your logistics network today.",
       totalDeliveries: "Total Deliveries",
       revenueCollected: "Collected Revenue",
+      profitGenerated: "Profit Generated",
       outstanding: "Outstanding",
       activeFleet: "Active Fleet",
       filterLabel: "Period",
@@ -312,9 +314,9 @@ const translations = {
       addSupplier: "Add Supplier",
       editSupplier: "Edit Supplier",
       supplierId: "ID",
-      buyingPrice: "Buying Price (per truck)",
-      sellingPrice: "Selling Price (per truck)",
-      priceHint: "This is the price of the whole truck (600 bags). Billing uses this amount — it is not multiplied by bag count.",
+      buyingPrice: "Buying Price",
+      sellingPrice: "Selling Price",
+      profit: "Profit / truck",
     },
     maintenance: {
       intro: "Track servicing, repairs, parts, workshops, and vehicle health in one place.",
@@ -669,8 +671,8 @@ const translations = {
       amount: "Amount",
       location: "Location",
       phone: "Phone",
-      buyingPrice: "Buying price (per truck / 600 bags)",
-      sellingPrice: "Selling price (per truck / 600 bags)",
+      buyingPrice: "Buying price",
+      sellingPrice: "Selling price",
       maintenanceVehicle: "Vehicle",
       maintenanceDate: "Maintenance Date",
       currentMileage: "Current Mileage",
@@ -844,6 +846,7 @@ const translations = {
       intro: "Hivi ndivyo vinavyoendelea kwenye mtandao wako wa usafirishaji leo.",
       totalDeliveries: "Jumla ya Uwasilishaji",
       revenueCollected: "Mapato Yaliyokusanywa",
+      profitGenerated: "Faida Iliyopatikana",
       outstanding: "Deni Lililobaki",
       activeFleet: "Magari Hai",
       filterLabel: "Kipindi",
@@ -928,9 +931,9 @@ const translations = {
       addSupplier: "Ongeza Msambazaji",
       editSupplier: "Hariri Msambazaji",
       supplierId: "ID",
-      buyingPrice: "Bei ya kununua (kwa lori)",
-      sellingPrice: "Bei ya kuuza (kwa lori)",
-      priceHint: "Hii ni bei ya lori kamili (mifuko 600). Ankara hutumia kiasi hichi — hakiongezwi kwa idadi ya mifuko.",
+      buyingPrice: "Bei ya kununua",
+      sellingPrice: "Bei ya kuuza",
+      profit: "Faida / lori",
     },
     maintenance: {
       intro: "Fuatilia service, marekebisho, vipuri, karakana, na afya ya gari sehemu moja.",
@@ -1285,8 +1288,8 @@ const translations = {
       amount: "Kiasi cha fedha",
       location: "Mahali",
       phone: "Simu",
-      buyingPrice: "Bei ya kununua (kwa lori / mifuko 600)",
-      sellingPrice: "Bei ya kuuza (kwa lori / mifuko 600)",
+      buyingPrice: "Bei ya kununua",
+      sellingPrice: "Bei ya kuuza",
       maintenanceVehicle: "Gari",
       maintenanceDate: "Tarehe ya Matengenezo",
       currentMileage: "Mita za Sasa",
@@ -2026,6 +2029,26 @@ function App() {
       (sum, item) => sum + Math.max(0, money(item.total) - money(item.paid)),
       0,
     );
+
+    const supplierByEntityId = new Map(
+      appData.suppliers.map((supplier) => [supplier.entityId, supplier]),
+    );
+    const profit = shipmentsInRange
+      .filter((item) => item.status === "delivered")
+      .reduce((sum, shipment) => {
+        const supplier =
+          supplierByEntityId.get(shipment.supplierId) ||
+          appData.suppliers.find((item) => item.entityId === shipment.raw?.supplierId);
+        return (
+          sum +
+          calculateShipmentProfit({
+            quantityBags: shipment.quantity,
+            buyingPrice: shipment.buyingPrice || supplier?.buyingPrice,
+            sellingPrice: shipment.sellingPrice || supplier?.sellingPrice,
+          })
+        );
+      }, 0);
+
     const deliveredCount = Math.max(
       deliveriesInRange.length,
       shipmentsInRange.filter((item) => item.status === "delivered").length,
@@ -2042,6 +2065,7 @@ function App() {
     return {
       deliveries: deliveredCount,
       revenue,
+      profit,
       outstanding,
       activeFleet,
       totalFleet,
@@ -2055,6 +2079,7 @@ function App() {
     appData.shipments,
     appData.deliveries,
     appData.fleet,
+    appData.suppliers,
     appData.customers.length,
     dashboardFilter,
     dashboardCustomFrom,
@@ -4240,7 +4265,7 @@ function App() {
 
       <section className="stats-grid">
         <StatCard label={t.dashboard.totalDeliveries} value={dashboardMetrics.deliveries} icon={Truck} tone="brand" />
-        <StatCard label={t.dashboard.revenueCollected} value={formatMoney(dashboardMetrics.revenue, language)} icon={TrendingUp} tone="green" />
+        <StatCard label={t.dashboard.profitGenerated} value={formatMoney(dashboardMetrics.profit, language)} icon={TrendingUp} tone="green" />
         <StatCard label={t.dashboard.outstanding} value={formatMoney(dashboardMetrics.outstanding, language)} icon={Clock3} tone="amber" />
         <StatCard
           label={t.dashboard.activeFleet}
@@ -4259,6 +4284,14 @@ function App() {
             </div>
           </div>
           <div className="summary-list">
+            <div className="summary-row">
+              <span>{t.dashboard.profitGenerated}</span>
+              <strong>{formatMoney(dashboardMetrics.profit, language)}</strong>
+            </div>
+            <div className="summary-row">
+              <span>{t.dashboard.revenueCollected}</span>
+              <strong>{formatMoney(dashboardMetrics.revenue, language)}</strong>
+            </div>
             <div className="summary-row">
               <span>{t.dashboard.completedRuns}</span>
               <strong>{dashboardMetrics.deliveredCount}</strong>
@@ -4683,7 +4716,7 @@ function App() {
                 </span>
                 <span>{t.suppliers.buyingPrice}: {formatMoney(supplier.buyingPrice, language)}</span>
                 <span>{t.suppliers.sellingPrice}: {formatMoney(supplier.sellingPrice, language)}</span>
-                <span className="supplier-price-hint">{t.suppliers.priceHint}</span>
+                <span>{t.suppliers.profit}: {formatMoney(supplier.profitPerTruck ?? (Number(supplier.sellingPrice) - Number(supplier.buyingPrice)), language)}</span>
               </div>
             </article>
           ))
@@ -6186,13 +6219,23 @@ function App() {
             <label>
               {t.modal.buyingPrice}
               <input name="buyingPrice" type="number" value={modalForm.buyingPrice ?? ""} onChange={updateForm} placeholder="120000" />
-              <span className="field-hint">{t.suppliers.priceHint}</span>
             </label>
             <label>
               {t.modal.sellingPrice}
               <input name="sellingPrice" type="number" value={modalForm.sellingPrice ?? ""} onChange={updateForm} placeholder="145000" />
-              <span className="field-hint">{t.suppliers.priceHint}</span>
             </label>
+            {(modalForm.buyingPrice !== "" && modalForm.buyingPrice != null) ||
+            (modalForm.sellingPrice !== "" && modalForm.sellingPrice != null) ? (
+              <div className="summary-row" style={{ gridColumn: "1 / -1" }}>
+                <span>{t.suppliers.profit}</span>
+                <strong>
+                  {formatMoney(
+                    (Number(modalForm.sellingPrice) || 0) - (Number(modalForm.buyingPrice) || 0),
+                    language,
+                  )}
+                </strong>
+              </div>
+            ) : null}
           </div>
         </Modal>
       ) : null}

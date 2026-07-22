@@ -25,6 +25,9 @@ export async function authMiddleware(request: Request, _response: Response, next
     }
 
     const payload = verifyToken(token);
+    if (payload.typ === "customer" || !payload.userId) {
+      throw new AppError("Staff authentication required.", 401);
+    }
 
     const user = await prisma.user.findUnique({
       where: { id: payload.userId },

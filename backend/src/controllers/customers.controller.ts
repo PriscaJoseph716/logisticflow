@@ -21,6 +21,16 @@ export class CustomersController {
     response.json({ success: true, item });
   };
 
+  enablePortalLogin = async (request: Request, response: Response) => {
+    const enable = request.body?.enable !== false;
+    const item = await customerService.enablePortalLogin(
+      request.user!.businessId,
+      request.params.id as string,
+      enable,
+    );
+    response.json({ success: true, item });
+  };
+
   remove = async (request: Request, response: Response) => {
     const item = await customerService.remove(
       request.user!.businessId,

@@ -445,6 +445,79 @@ DO $$ BEGIN
     FOREIGN KEY ("invoiceId") REFERENCES "Invoice"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
+
+-- Customer portal columns
+ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "loginEnabled" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "passwordHash" TEXT;
+ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "mustChangePassword" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "creditLimit" DOUBLE PRECISION NOT NULL DEFAULT 0;
+ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "notifyEmail" BOOLEAN NOT NULL DEFAULT true;
+ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "notifySms" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "lastLoginAt" TIMESTAMP(3);
+
+CREATE TABLE IF NOT EXISTS "OrderRequest" (
+  "id" TEXT NOT NULL,
+  "businessId" TEXT NOT NULL,
+  "customerId" TEXT NOT NULL,
+  "orderCode" TEXT NOT NULL,
+  "origin" TEXT NOT NULL DEFAULT '',
+  "destination" TEXT NOT NULL DEFAULT '',
+  "cargoType" TEXT NOT NULL DEFAULT 'Cement',
+  "quantity" DOUBLE PRECISION NOT NULL DEFAULT 0,
+  "weight" DOUBLE PRECISION NOT NULL DEFAULT 0,
+  "preferredPickupDate" TIMESTAMP(3),
+  "notes" TEXT NOT NULL DEFAULT '',
+  "status" TEXT NOT NULL DEFAULT 'PENDING_APPROVAL',
+  "shipmentId" TEXT,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL,
+  CONSTRAINT "OrderRequest_pkey" PRIMARY KEY ("id")
+);
+
+CREATE INDEX IF NOT EXISTS "OrderRequest_businessId_idx" ON "OrderRequest"("businessId");
+CREATE INDEX IF NOT EXISTS "OrderRequest_customerId_idx" ON "OrderRequest"("customerId");
+CREATE INDEX IF NOT EXISTS "OrderRequest_status_idx" ON "OrderRequest"("status");
+CREATE UNIQUE INDEX IF NOT EXISTS "OrderRequest_businessId_orderCode_key" ON "OrderRequest"("businessId", "orderCode");
+
+CREATE TABLE IF NOT EXISTS "CustomerNotification" (
+  "id" TEXT NOT NULL,
+  "businessId" TEXT NOT NULL,
+  "customerId" TEXT NOT NULL,
+  "title" TEXT NOT NULL,
+  "message" TEXT NOT NULL DEFAULT '',
+  "type" TEXT NOT NULL DEFAULT 'INFO',
+  "status" TEXT NOT NULL DEFAULT 'UNREAD',
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "CustomerNotification_pkey" PRIMARY KEY ("id")
+);
+
+CREATE INDEX IF NOT EXISTS "CustomerNotification_businessId_idx" ON "CustomerNotification"("businessId");
+CREATE INDEX IF NOT EXISTS "CustomerNotification_customerId_idx" ON "CustomerNotification"("customerId");
+CREATE INDEX IF NOT EXISTS "CustomerNotification_status_idx" ON "CustomerNotification"("status");
+
+DO $$ BEGIN
+  ALTER TABLE "OrderRequest" ADD CONSTRAINT "OrderRequest_businessId_fkey"
+    FOREIGN KEY ("businessId") REFERENCES "Business"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  ALTER TABLE "OrderRequest" ADD CONSTRAINT "OrderRequest_customerId_fkey"
+    FOREIGN KEY ("customerId") REFERENCES "Customer"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  ALTER TABLE "CustomerNotification" ADD CONSTRAINT "CustomerNotification_businessId_fkey"
+    FOREIGN KEY ("businessId") REFERENCES "Business"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  ALTER TABLE "CustomerNotification" ADD CONSTRAINT "CustomerNotification_customerId_fkey"
+    FOREIGN KEY ("customerId") REFERENCES "Customer"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 `;
 
 async function businessTableExists(): Promise<boolean> {

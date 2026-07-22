@@ -1,4 +1,5 @@
 import axios from "axios";
+import { loadPortalSession } from "./portalSession";
 import { clearStoredSession, loadStoredSession, storeSession } from "./session";
 
 const LOCAL_API_URL = "http://127.0.0.1:5001/api";
@@ -112,9 +113,22 @@ export function configureApiClient({ onAuthExpired } = {}) {
 }
 
 api.interceptors.request.use((config) => {
+  const requestUrl = config.url ?? "";
+  const isPortalRequest = Boolean(config.__portalAuth) || requestUrl.includes("/portal");
+  config.headers = config.headers ?? {};
+
+  if (isPortalRequest) {
+    const portalToken = loadPortalSession()?.token;
+    if (portalToken) {
+      config.headers.Authorization = `Bearer ${portalToken}`;
+    } else {
+      delete config.headers.Authorization;
+    }
+    return config;
+  }
+
   const token = inMemorySession?.token;
   if (token) {
-    config.headers = config.headers ?? {};
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
@@ -125,6 +139,7 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config ?? {};
     const requestUrl = originalRequest.url ?? "";
+    const isPortalRequest = Boolean(originalRequest.__portalAuth) || requestUrl.includes("/portal");
 
     // Don't wipe the session on /me failures during bootstrap — authApi.bootstrap decides.
     const isMeRoute = requestUrl.includes("/me");
@@ -133,7 +148,8 @@ api.interceptors.response.use(
       error.response?.status === 401 &&
       !originalRequest.__authHandled &&
       !isAuthRoute(requestUrl) &&
-      !isMeRoute
+      !isMeRoute &&
+      !isPortalRequest
     ) {
       originalRequest.__authHandled = true;
       const hadSession = Boolean(getSession()?.user);

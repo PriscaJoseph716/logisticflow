@@ -7,6 +7,7 @@ const customersRoutes = Router();
 customersRoutes.use(authMiddleware);
 customersRoutes.get("/", customersController.list);
 customersRoutes.post("/", customersController.create);
+customersRoutes.patch("/:id/portal-login", customersController.enablePortalLogin);
 customersRoutes.patch("/:id", customersController.update);
 customersRoutes.delete("/:id", customersController.remove);
 

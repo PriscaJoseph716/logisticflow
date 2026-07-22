@@ -24,6 +24,8 @@ model Business {
   maintenance MaintenanceRecord[]
   invoices    Invoice[]
   payments    Payment[]
+  orderRequests OrderRequest[]
+  customerNotifications CustomerNotification[]
 }
 
 model Role {
@@ -130,24 +132,75 @@ model Vehicle {
 }
 
 model Customer {
-  id            String     @id @default(uuid())
-  businessId    String
-  business      Business   @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  customerCode  String
-  name          String
-  phone         String     @default("")
-  location      String     @default("")
-  email         String?
-  contactPerson String?
-  notes         String?
-  shipments     Shipment[]
-  deliveries    Delivery[]
-  invoices      Invoice[]
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
+  id                 String              @id @default(uuid())
+  businessId         String
+  business           Business            @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  customerCode       String
+  name               String
+  phone              String              @default("")
+  location           String              @default("")
+  email              String?
+  contactPerson      String?
+  notes              String?
+  loginEnabled       Boolean             @default(false)
+  passwordHash       String?
+  mustChangePassword Boolean             @default(false)
+  creditLimit        Float               @default(0)
+  notifyEmail        Boolean             @default(true)
+  notifySms          Boolean             @default(false)
+  lastLoginAt        DateTime?
+  shipments          Shipment[]
+  deliveries         Delivery[]
+  invoices           Invoice[]
+  orderRequests      OrderRequest[]
+  notifications      CustomerNotification[]
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
 
   @@unique([businessId, customerCode])
   @@index([businessId])
+}
+
+model OrderRequest {
+  id                  String    @id @default(uuid())
+  businessId          String
+  business            Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  customerId          String
+  customer            Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  orderCode           String
+  origin              String    @default("")
+  destination         String    @default("")
+  cargoType           String    @default("Cement")
+  quantity            Float     @default(0)
+  weight              Float     @default(0)
+  preferredPickupDate DateTime?
+  notes               String    @default("")
+  status              String    @default("PENDING_APPROVAL")
+  shipmentId          String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@unique([businessId, orderCode])
+  @@index([businessId])
+  @@index([customerId])
+  @@index([status])
+}
+
+model CustomerNotification {
+  id         String   @id @default(uuid())
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  title      String
+  message    String   @default("")
+  type       String   @default("INFO")
+  status     String   @default("UNREAD")
+  createdAt  DateTime @default(now())
+
+  @@index([businessId])
+  @@index([customerId])
+  @@index([status])
 }
 
 model Supplier {

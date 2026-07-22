@@ -169,6 +169,9 @@ export const customersApi = {
   update(id, payload) {
     return unwrapApi(api.patch(`/customers/${id}`, payload));
   },
+  enablePortalLogin(id, enable = true) {
+    return unwrapApi(api.patch(`/customers/${id}/portal-login`, { enable: Boolean(enable) }));
+  },
   remove(id) {
     return unwrapApi(api.delete(`/customers/${id}`));
   },
@@ -201,6 +204,15 @@ export const shipmentsApi = {
   },
   remove(id) {
     return unwrapApi(api.delete(`/shipments/${id}`));
+  },
+};
+
+export const orderRequestsApi = {
+  list() {
+    return unwrapApi(api.get("/portal/admin/order-requests"));
+  },
+  updateStatus(id, status) {
+    return unwrapApi(api.patch(`/portal/admin/order-requests/${id}`, { status }));
   },
 };
 

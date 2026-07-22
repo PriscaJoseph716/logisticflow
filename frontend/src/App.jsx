@@ -11,10 +11,13 @@ import {
   CircleDollarSign,
   ClipboardList,
   Clock3,
+  Copy,
   Download,
   Eye,
   EyeOff,
   FileDown,
+  KeyRound,
+  Mail,
   FileSpreadsheet,
   FileText,
   Gauge,
@@ -85,6 +88,7 @@ import {
   fleetApi,
   maintenanceApi,
   notificationsApi,
+  orderRequestsApi,
   paymentsApi,
   reportsApi,
   rolesApi,
@@ -1443,7 +1447,17 @@ function generateNextCustomerId(customers) {
     return Math.max(max, value);
   }, 0);
 
-  return `CUST-${String(maxNumber + 1).padStart(3, "0")}`;
+  return `CUST-${String(maxNumber + 1).padStart(4, "0")}`;
+}
+
+function buildPortalCredentialsShareText(credentials) {
+  if (!credentials) return "";
+  return [
+    "LogisticsFlow Customer Portal access",
+    `Customer ID: ${credentials.customerId}`,
+    `Temporary Password: ${credentials.temporaryPassword}`,
+    `Login URL: ${credentials.loginUrl}`,
+  ].join("\n");
 }
 
 function generateNextSupplierId(suppliers) {
@@ -2134,7 +2148,6 @@ function App() {
 
   const hasMaintenancePermission = (permission) =>
     isOwner || maintenancePermissions.has(`maintenance:${permission}`);
-  const canViewMaintenance = hasMaintenancePermission("view");
   const canCreateMaintenance = hasMaintenancePermission("create");
   const canEditMaintenance = hasMaintenancePermission("edit");
   const canDeleteMaintenance = hasMaintenancePermission("delete");
@@ -2776,7 +2789,7 @@ function App() {
       });
     }
     if (type === "customer") {
-      setModalForm({ id: "", name: "", phone: "", location: "" });
+      setModalForm({ id: "", name: "", phone: "", location: "", enableLogin: false });
       setModal({ type, mode: "create" });
       return;
     }
@@ -2884,8 +2897,47 @@ function App() {
       email: customer.email ?? "",
       contactPerson: customer.contactPerson ?? "",
       notes: customer.notes ?? "",
+      enableLogin: false,
+      hasPortalLogin: Boolean(customer.hasPortalLogin || customer.loginEnabled),
     });
     setModal({ type: "customer", mode: "edit", customerId: customer.entityId });
+  };
+
+  const openPortalCredentialsModal = (credentials) => {
+    if (!credentials) return;
+    setModalForm({ portalCredentials: credentials });
+    setModal({ type: "portalCredentials" });
+  };
+
+  const handleEnablePortalAccess = (customer) => {
+    if (saveInFlightRef.current || !customer?.entityId) return;
+    saveInFlightRef.current = true;
+    showToast(language === "sw" ? "Inawezesha portal…" : "Enabling portal access…");
+
+    void (async () => {
+      try {
+        const payload = await customersApi.enablePortalLogin(customer.entityId, true);
+        const item = payload?.item ?? payload;
+        refreshAfterSave();
+        if (item?.portalCredentials) {
+          openPortalCredentialsModal(item.portalCredentials);
+          showToast(language === "sw" ? "Taarifa za portal zimetengenezwa." : "Portal credentials generated.");
+        } else {
+          showToast(language === "sw" ? "Portal imewezeshwa." : "Portal access enabled.");
+        }
+      } catch (error) {
+        showToast(
+          getApiErrorMessage(
+            error,
+            language === "sw" ? "Imeshindikana kuwezesha portal." : "Unable to enable portal access.",
+          ),
+          "error",
+        );
+        refreshAfterSave();
+      } finally {
+        saveInFlightRef.current = false;
+      }
+    })();
   };
 
   const openSupplierEditModal = (supplier) => {
@@ -3141,6 +3193,7 @@ function App() {
         maintenanceApi.upcoming(),
         maintenanceApi.mileageReminders(),
         reportsApi.list(),
+        orderRequestsApi.list(),
       ]);
 
       const valueAt = (index) =>
@@ -3170,6 +3223,7 @@ function App() {
         payments: asItems(valueAt(6)).map(mapInvoiceToPaymentCard),
         notifications,
         reports: asItems(valueAt(13)),
+        orderRequests: asItems(valueAt(14)),
         dashboardSummary: valueAt(8)?.item ?? valueAt(8),
         billingSummary: valueAt(9)?.item ?? valueAt(9),
         maintenanceAnalytics: valueAt(10)?.item ?? valueAt(10),
@@ -3511,24 +3565,55 @@ function App() {
         return;
       }
 
+      const enableLogin = Boolean(modalForm.enableLogin);
+      const isEdit = modal.mode === "edit" && modal.customerId;
+      const customerId = modal.customerId;
       const payload = {
-        customerCode: modal.mode === "edit" ? modalForm.id : generateNextCustomerId(appData.customers),
+        customerCode: isEdit ? modalForm.id : generateNextCustomerId(appData.customers),
         name: modalForm.name,
         phone: modalForm.phone,
         location: modalForm.location,
         email: modalForm.email || null,
         contactPerson: modalForm.contactPerson || null,
         notes: modalForm.notes || null,
+        ...(isEdit ? {} : { enableLogin }),
       };
 
-      softPersist(
-        () =>
-          modal.mode === "edit" && modal.customerId
-            ? customersApi.update(modal.customerId, payload)
-            : customersApi.create(payload),
-        modal.mode === "edit" ? t.toast.customerUpdated : t.toast.customerAdded,
-        language === "sw" ? "Imeshindikana kuhifadhi mteja." : "Unable to save customer. Please try again.",
-      );
+      if (saveInFlightRef.current) return;
+      saveInFlightRef.current = true;
+      closeModal();
+      showToast(isEdit ? t.toast.customerUpdated : t.toast.customerAdded);
+
+      void (async () => {
+        try {
+          let result;
+          if (isEdit) {
+            result = await customersApi.update(customerId, payload);
+            if (enableLogin) {
+              result = await customersApi.enablePortalLogin(customerId, true);
+            }
+          } else {
+            result = await customersApi.create(payload);
+          }
+
+          const item = result?.item ?? result;
+          refreshAfterSave();
+          if (item?.portalCredentials) {
+            openPortalCredentialsModal(item.portalCredentials);
+          }
+        } catch (error) {
+          showToast(
+            getApiErrorMessage(
+              error,
+              language === "sw" ? "Imeshindikana kuhifadhi mteja." : "Unable to save customer. Please try again.",
+            ),
+            "error",
+          );
+          refreshAfterSave();
+        } finally {
+          saveInFlightRef.current = false;
+        }
+      })();
       return;
     }
 
@@ -4570,6 +4655,80 @@ function App() {
         </div>
       </section>
 
+      {(appData.orderRequests ?? []).filter((item) => item.status === "PENDING_APPROVAL").length ? (
+        <section className="glass-card table-card">
+          <div className="section-row">
+            <div>
+              <h3>Customer order requests</h3>
+              <p>Approve or cancel orders submitted from the customer portal.</p>
+            </div>
+          </div>
+          <div className="table-wrapper" style={{ marginTop: 12 }}>
+            <table className="history-table">
+              <thead>
+                <tr>
+                  <th>Order</th>
+                  <th>Customer</th>
+                  <th>Route</th>
+                  <th>Qty</th>
+                  <th>Status</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {(appData.orderRequests ?? [])
+                  .filter((item) => item.status === "PENDING_APPROVAL")
+                  .map((order) => (
+                    <tr key={order.id}>
+                      <td>{order.orderCode}</td>
+                      <td>{order.customer?.name ?? "—"}</td>
+                      <td>
+                        {order.origin} → {order.destination}
+                      </td>
+                      <td>{order.quantity}</td>
+                      <td>{String(order.status || "").replaceAll("_", " ")}</td>
+                      <td>
+                        <div className="header-actions" style={{ gap: 6 }}>
+                          <button
+                            type="button"
+                            className="button small primary"
+                            onClick={async () => {
+                              try {
+                                await orderRequestsApi.updateStatus(order.id, "APPROVED");
+                                showToast("Order approved.");
+                                refreshAfterSave();
+                              } catch (error) {
+                                showToast(getApiErrorMessage(error, "Unable to approve order."), "error");
+                              }
+                            }}
+                          >
+                            Approve
+                          </button>
+                          <button
+                            type="button"
+                            className="button small secondary"
+                            onClick={async () => {
+                              try {
+                                await orderRequestsApi.updateStatus(order.id, "CANCELLED");
+                                showToast("Order cancelled.");
+                                refreshAfterSave();
+                              } catch (error) {
+                                showToast(getApiErrorMessage(error, "Unable to cancel order."), "error");
+                              }
+                            }}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : null}
+
       <section className={searchedShipments.length ? "card-grid two" : "empty-state-section"}>
         {searchedShipments.length ? (
           searchedShipments.map((shipment) => (
@@ -4718,6 +4877,12 @@ function App() {
                   <strong>{customer.name}</strong>
                   <span>{customer.location}</span>
                   <span>{t.customers.customerId}: {customer.id}</span>
+                  {customer.hasPortalLogin || customer.loginEnabled ? (
+                    <span className="status-badge green" style={{ marginTop: 6, display: "inline-flex" }}>
+                      <span className="status-dot" />
+                      Portal login
+                    </span>
+                  ) : null}
                 </div>
                 <button type="button" className="inline-link" onClick={() => openCustomerEditModal(customer)}>
                   {t.common.edit}
@@ -4737,6 +4902,10 @@ function App() {
                 <button type="button" className="inline-link" onClick={() => exportCustomerReport(customer, true)}>
                   <FileDown size={14} />
                   {t.customers.downloadReport}
+                </button>
+                <button type="button" className="inline-link" onClick={() => handleEnablePortalAccess(customer)}>
+                  <KeyRound size={14} />
+                  Portal access
                 </button>
               </div>
             </article>
@@ -4840,31 +5009,6 @@ function App() {
 
       <section className="maintenance-summary-grid">
         <StatCard label={t.maintenance.openRepairs} value={maintenanceSummary.openRepairs} change={maintenanceSummary.openRepairsChange} icon={Hammer} tone="amber" />
-        <div className="glass-card summary-highlight">
-          <div className="settings-title">
-            <div className="inline-icon brand">
-              <ShieldCheck size={18} />
-            </div>
-            <h3>{t.common.permissions}</h3>
-          </div>
-          <div className="permission-chip-row">
-            {[
-              { key: "view", label: t.maintenance.permissionView, allowed: canViewMaintenance },
-              { key: "create", label: t.maintenance.permissionCreate, allowed: canCreateMaintenance },
-              { key: "edit", label: t.maintenance.permissionEdit, allowed: canEditMaintenance },
-              { key: "delete", label: t.maintenance.permissionDelete, allowed: canDeleteMaintenance },
-              { key: "approve", label: t.maintenance.permissionApprove, allowed: canApproveMaintenance },
-              { key: "export", label: t.maintenance.permissionExport, allowed: canExportMaintenance },
-            ].map((permission) => (
-              <span
-                key={permission.key}
-                className={`permission-chip ${permission.allowed ? "is-allowed" : "is-blocked"}`}
-              >
-                {permission.label}
-              </span>
-            ))}
-          </div>
-        </div>
         <div className="glass-card summary-highlight">
           <div className="settings-title">
             <div className={`inline-icon ${maintenanceAlerts.length ? "amber" : "brand"}`}>
@@ -6295,6 +6439,90 @@ function App() {
               {t.modal.location}
               <input name="location" value={modalForm.location ?? ""} onChange={updateForm} placeholder="Abuja" />
             </label>
+            <label style={{ display: "flex", gap: 10, alignItems: "center" }}>
+              <input
+                type="checkbox"
+                name="enableLogin"
+                checked={Boolean(modalForm.enableLogin)}
+                onChange={(event) =>
+                  setModalForm((current) => ({ ...current, enableLogin: event.target.checked }))
+                }
+              />
+              Enable Customer Login
+            </label>
+            {modalForm.hasPortalLogin && !modalForm.enableLogin ? (
+              <p className="helper-text" style={{ margin: 0 }}>
+                Portal login is already enabled. Check the box to regenerate credentials, or use Portal access on the
+                customer card.
+              </p>
+            ) : null}
+            {modalForm.enableLogin ? (
+              <p className="helper-text" style={{ margin: 0 }}>
+                {modal.mode === "edit"
+                  ? "Saving with this enabled regenerates portal credentials for the customer."
+                  : "A temporary password and portal login URL will be generated after save."}
+              </p>
+            ) : null}
+          </div>
+        </Modal>
+      ) : null}
+
+      {modal.type === "portalCredentials" && modalForm.portalCredentials ? (
+        <Modal
+          title="Customer Portal Access"
+          onClose={closeModal}
+          onSave={closeModal}
+          saveLabel={t.common.close}
+          cancelLabel={t.common.cancel}
+          hideSave={false}
+        >
+          <div className="form-grid single">
+            <label>
+              Customer ID
+              <input value={modalForm.portalCredentials.customerId ?? ""} readOnly />
+            </label>
+            <label>
+              Temporary Password
+              <input value={modalForm.portalCredentials.temporaryPassword ?? ""} readOnly />
+            </label>
+            <label>
+              Login URL
+              <input value={modalForm.portalCredentials.loginUrl ?? ""} readOnly />
+            </label>
+            <div className="fleet-card-actions" style={{ flexWrap: "wrap", gap: 8 }}>
+              <button
+                type="button"
+                className="button secondary"
+                onClick={async () => {
+                  const text = buildPortalCredentialsShareText(modalForm.portalCredentials);
+                  try {
+                    await navigator.clipboard.writeText(text);
+                    showToast(language === "sw" ? "Imenakiliwa." : "Login details copied.");
+                  } catch (_error) {
+                    showToast(language === "sw" ? "Imeshindikana kunakili." : "Unable to copy details.", "error");
+                  }
+                }}
+              >
+                <Copy size={14} />
+                Copy Login Details
+              </button>
+              <a
+                className="button secondary"
+                href={`https://wa.me/?text=${encodeURIComponent(buildPortalCredentialsShareText(modalForm.portalCredentials))}`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <Share2 size={14} />
+                Share via WhatsApp
+              </a>
+              <a
+                className="button secondary"
+                href={`mailto:?subject=${encodeURIComponent("Customer Portal Login")}&body=${encodeURIComponent(buildPortalCredentialsShareText(modalForm.portalCredentials))}`}
+              >
+                <Mail size={14} />
+                Share via Email
+              </a>
+            </div>
           </div>
         </Modal>
       ) : null}

@@ -8,6 +8,7 @@ export const emptyAppData = {
   payments: [],
   reports: [],
   notifications: [],
+  orderRequests: [],
   dashboardSummary: null,
   billingSummary: null,
   maintenanceAnalytics: null,

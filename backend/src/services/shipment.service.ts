@@ -163,6 +163,18 @@ export class ShipmentService {
               dueDate,
             },
           });
+
+          if (customerId) {
+            await tx.customerNotification.create({
+              data: {
+                businessId,
+                customerId,
+                title: "Invoice generated",
+                message: `Invoice INV-${suffix} for ${totalAmount.toLocaleString()} has been created.`,
+                type: "INVOICE",
+              },
+            });
+          }
         } else {
           // Fix older invoices that were wrongly billed as bags × price.
           for (const invoice of existing.invoices) {

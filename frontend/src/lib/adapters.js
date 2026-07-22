@@ -69,6 +69,8 @@ export function mapCustomerRecord(record) {
     contactPerson: record.contactPerson ?? "",
     notes: record.notes ?? "",
     shipmentsCount: record.shipmentsCount ?? 0,
+    hasPortalLogin: Boolean(record.hasPortalLogin ?? record.loginEnabled),
+    loginEnabled: Boolean(record.loginEnabled ?? record.hasPortalLogin),
     raw: record,
   };
 }

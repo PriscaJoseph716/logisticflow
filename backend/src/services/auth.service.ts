@@ -3,7 +3,7 @@ import { prisma } from "../config/database.js";
 import { AppError } from "../utils/app-error.js";
 import { normalizeBusinessId, slugifyCompanyName } from "../utils/business-id.js";
 import { hashPassword, verifyPassword } from "../utils/hash.js";
-import { signToken } from "../utils/jwt.js";
+import { signStaffToken } from "../utils/jwt.js";
 import { OWNER_PERMISSIONS, parsePermissions } from "../utils/roles.js";
 import { businessService } from "./business.service.js";
 import { roleService } from "./role.service.js";
@@ -120,10 +120,7 @@ export class AuthService {
 
         await roleService.seedDefaultRoles(business.id);
 
-        const token = signToken({
-          userId: user.id,
-          businessId: business.id,
-        });
+        const token = signStaffToken(user.id, business.id);
 
         return {
           token,
@@ -190,10 +187,7 @@ export class AuthService {
       await roleService.seedDefaultRoles(user.businessId);
     }
 
-    const token = signToken({
-      userId: user.id,
-      businessId: user.businessId,
-    });
+    const token = signStaffToken(user.id, user.businessId);
 
     return {
       token,

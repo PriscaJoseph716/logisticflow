@@ -58,6 +58,18 @@ export class PaymentService {
         },
       });
 
+      if (invoice.customerId) {
+        await tx.customerNotification.create({
+          data: {
+            businessId,
+            customerId: invoice.customerId,
+            title: "Payment recorded",
+            message: `A payment of ${amount.toLocaleString()} was recorded on your account.`,
+            type: "PAYMENT",
+          },
+        });
+      }
+
       return payment;
     });
   }

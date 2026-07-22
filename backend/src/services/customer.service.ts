@@ -1,6 +1,12 @@
 import { prisma } from "../config/database.js";
+import { env } from "../config/env.js";
 import { AppError } from "../utils/app-error.js";
+import { hashPassword } from "../utils/hash.js";
 import { safeTrim } from "../utils/json.js";
+import {
+  buildPortalLoginUrl,
+  generateTemporaryPassword,
+} from "./portal-auth.service.js";
 
 export class CustomerService {
   async list(businessId: string) {
@@ -10,9 +16,10 @@ export class CustomerService {
       orderBy: { createdAt: "desc" },
     });
 
-    return items.map(({ _count, ...item }) => ({
+    return items.map(({ _count, passwordHash: _passwordHash, ...item }) => ({
       ...item,
       shipmentsCount: _count.shipments,
+      hasPortalLogin: Boolean(item.loginEnabled),
     }));
   }
 
@@ -26,15 +33,26 @@ export class CustomerService {
       email?: string | null;
       contactPerson?: string | null;
       notes?: string | null;
+      enableLogin?: boolean;
+      creditLimit?: number;
     },
   ) {
-    const customerCode = safeTrim(input.customerCode);
+    const customerCode = safeTrim(input.customerCode).toUpperCase();
     const name = safeTrim(input.name);
     if (!customerCode || !name) {
       throw new AppError("customerCode and name are required.");
     }
 
-    return prisma.customer.create({
+    let passwordHash: string | null = null;
+    let temporaryPassword: string | null = null;
+    const enableLogin = Boolean(input.enableLogin);
+
+    if (enableLogin) {
+      temporaryPassword = generateTemporaryPassword();
+      passwordHash = await hashPassword(temporaryPassword);
+    }
+
+    const customer = await prisma.customer.create({
       data: {
         businessId,
         customerCode,
@@ -44,8 +62,29 @@ export class CustomerService {
         email: safeTrim(input.email) || null,
         contactPerson: safeTrim(input.contactPerson) || null,
         notes: safeTrim(input.notes) || null,
+        loginEnabled: enableLogin,
+        passwordHash,
+        mustChangePassword: enableLogin,
+        creditLimit: Number(input.creditLimit ?? 0),
       },
     });
+
+    const business = await prisma.business.findUnique({ where: { id: businessId } });
+    const loginUrl = business ? buildPortalLoginUrl(business.businessId) : env.PORTAL_URL;
+
+    const { passwordHash: _omit, ...safeCustomer } = customer;
+    return {
+      ...safeCustomer,
+      hasPortalLogin: enableLogin,
+      portalCredentials: enableLogin
+        ? {
+            customerId: customer.customerCode,
+            temporaryPassword,
+            loginUrl,
+            businessId: business?.businessId ?? "",
+          }
+        : null,
+    };
   }
 
   async update(
@@ -59,15 +98,18 @@ export class CustomerService {
       email?: string | null;
       contactPerson?: string | null;
       notes?: string | null;
+      creditLimit?: number;
     },
   ) {
     const existing = await prisma.customer.findFirst({ where: { id, businessId } });
     if (!existing) throw new AppError("Customer not found.", 404);
 
-    return prisma.customer.update({
+    const updated = await prisma.customer.update({
       where: { id },
       data: {
-        ...(input.customerCode !== undefined ? { customerCode: safeTrim(input.customerCode) } : {}),
+        ...(input.customerCode !== undefined
+          ? { customerCode: safeTrim(input.customerCode).toUpperCase() }
+          : {}),
         ...(input.name !== undefined ? { name: safeTrim(input.name) } : {}),
         ...(input.phone !== undefined ? { phone: safeTrim(input.phone) } : {}),
         ...(input.location !== undefined ? { location: safeTrim(input.location) } : {}),
@@ -76,8 +118,54 @@ export class CustomerService {
           ? { contactPerson: safeTrim(input.contactPerson) || null }
           : {}),
         ...(input.notes !== undefined ? { notes: safeTrim(input.notes) || null } : {}),
+        ...(input.creditLimit !== undefined ? { creditLimit: Number(input.creditLimit) } : {}),
       },
     });
+
+    const { passwordHash: _omit, ...safe } = updated;
+    return { ...safe, hasPortalLogin: Boolean(updated.loginEnabled) };
+  }
+
+  async enablePortalLogin(businessId: string, id: string, enable: boolean) {
+    const existing = await prisma.customer.findFirst({ where: { id, businessId } });
+    if (!existing) throw new AppError("Customer not found.", 404);
+
+    const business = await prisma.business.findUnique({ where: { id: businessId } });
+    if (!business) throw new AppError("Business not found.", 404);
+
+    if (!enable) {
+      const updated = await prisma.customer.update({
+        where: { id },
+        data: {
+          loginEnabled: false,
+        },
+      });
+      const { passwordHash: _omit, ...safe } = updated;
+      return { ...safe, hasPortalLogin: false, portalCredentials: null };
+    }
+
+    const temporaryPassword = generateTemporaryPassword();
+    const passwordHash = await hashPassword(temporaryPassword);
+    const updated = await prisma.customer.update({
+      where: { id },
+      data: {
+        loginEnabled: true,
+        passwordHash,
+        mustChangePassword: true,
+      },
+    });
+
+    const { passwordHash: _omit, ...safe } = updated;
+    return {
+      ...safe,
+      hasPortalLogin: true,
+      portalCredentials: {
+        customerId: updated.customerCode,
+        temporaryPassword,
+        loginUrl: buildPortalLoginUrl(business.businessId),
+        businessId: business.businessId,
+      },
+    };
   }
 
   async remove(businessId: string, id: string) {

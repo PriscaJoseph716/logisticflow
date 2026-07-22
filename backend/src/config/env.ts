@@ -27,6 +27,7 @@ export const env = {
   JWT_SECRET: required("JWT_SECRET", ["JWT_ACCESS_SECRET"]),
   JWT_EXPIRES_IN: optional("JWT_EXPIRES_IN", "7d"),
   COOKIE_NAME: optional("COOKIE_NAME", "lf_token"),
+  PORTAL_COOKIE_NAME: optional("PORTAL_COOKIE_NAME", "lf_portal_token"),
   // Cross-site cookies (Vercel → Render) require Secure + SameSite=None.
   // Force Secure in production even if an old Render env still says COOKIE_SECURE=false.
   COOKIE_SECURE:
@@ -34,6 +35,7 @@ export const env = {
       ? true
       : optional("COOKIE_SECURE", "false") === "true",
   FRONTEND_URL: optional("FRONTEND_URL", "http://localhost:5173"),
+  PORTAL_URL: optional("PORTAL_URL", "http://localhost:5173/portal"),
 };
 
 const DEFAULT_ORIGINS = [
@@ -41,13 +43,27 @@ const DEFAULT_ORIGINS = [
   "http://127.0.0.1:5173",
   "https://logisticflow.vercel.app",
   "https://www.logisticflow.vercel.app",
+  "https://portal.logisticflow.vercel.app",
+  "https://app.logisticflow.com",
+  "https://portal.logisticflow.com",
 ];
 
 export const allowedOrigins = Array.from(
   new Set(
-    env.FRONTEND_URL.split(",")
+    [env.FRONTEND_URL, env.PORTAL_URL]
+      .join(",")
+      .split(",")
       .map((origin) => origin.trim().replace(/\/+$/, ""))
       .filter(Boolean)
-      .concat(DEFAULT_ORIGINS),
+      .concat(DEFAULT_ORIGINS)
+      // Allow portal path origins without trailing path for CORS host matching
+      .flatMap((origin) => {
+        try {
+          const url = new URL(origin.includes("://") ? origin : `https://${origin}`);
+          return [`${url.protocol}//${url.host}`];
+        } catch {
+          return [origin];
+        }
+      }),
   ),
 );

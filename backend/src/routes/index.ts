@@ -12,6 +12,7 @@ import { fleetRoutes } from "./fleet.routes.js";
 import { maintenanceRoutes } from "./maintenance.routes.js";
 import { notificationsRoutes } from "./notifications.routes.js";
 import { paymentsRoutes } from "./payments.routes.js";
+import { portalRoutes } from "./portal.routes.js";
 import { reportsRoutes } from "./reports.routes.js";
 import { rolesRoutes } from "./roles.routes.js";
 import { shipmentsRoutes } from "./shipments.routes.js";
@@ -26,6 +27,7 @@ router.get("/health", healthController.health);
 
 router.use("/api/auth", authRoutes);
 router.get("/api/me", authMiddleware, authController.me);
+router.use("/api/portal", portalRoutes);
 router.use("/api/users", usersRoutes);
 router.use("/api/roles", rolesRoutes);
 router.use("/api/assignments", assignmentsRoutes);

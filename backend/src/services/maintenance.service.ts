@@ -31,29 +31,33 @@ type AttachmentInput = {
 };
 
 function normalizeParts(parts: PartInput[] = []) {
-  return parts.map((part) => {
-    const quantity = Number(part.quantity ?? 1);
-    const unitPrice = Number(part.unitPrice ?? 0);
-    const totalPrice =
-      part.totalPrice !== undefined ? Number(part.totalPrice) : quantity * unitPrice;
-    return {
-      partName: safeTrim(part.partName),
-      brand: safeTrim(part.brand),
-      quantity,
-      unitPrice,
-      totalPrice,
-      supplier: safeTrim(part.supplier),
-    };
-  });
+  return parts
+    .map((part) => {
+      const quantity = Number(part.quantity ?? 1);
+      const unitPrice = Number(part.unitPrice ?? 0);
+      const totalPrice =
+        part.totalPrice !== undefined ? Number(part.totalPrice) : quantity * unitPrice;
+      return {
+        partName: safeTrim(part.partName),
+        brand: safeTrim(part.brand),
+        quantity,
+        unitPrice,
+        totalPrice,
+        supplier: safeTrim(part.supplier),
+      };
+    })
+    .filter((part) => Boolean(part.partName));
 }
 
 function normalizeAttachments(attachments: AttachmentInput[] = []) {
-  return attachments.map((item) => ({
-    fileName: safeTrim(item.fileName),
-    fileUrl: safeTrim(item.fileUrl),
-    mimeType: safeTrim(item.mimeType),
-    category: safeUpper(item.category, "OTHER") || "OTHER",
-  }));
+  return attachments
+    .map((item) => ({
+      fileName: safeTrim(item.fileName),
+      fileUrl: safeTrim(item.fileUrl),
+      mimeType: safeTrim(item.mimeType),
+      category: safeUpper(item.category, "OTHER") || "OTHER",
+    }))
+    .filter((item) => Boolean(item.fileName && item.fileUrl));
 }
 
 function computeCosts(laborCost: number, otherCost: number, parts: ReturnType<typeof normalizeParts>) {
@@ -62,6 +66,12 @@ function computeCosts(laborCost: number, otherCost: number, parts: ReturnType<ty
     partsCost,
     totalCost: laborCost + partsCost + otherCost,
   };
+}
+
+function normalizeMaintenanceDbStatus(value: unknown) {
+  const status = safeUpper(value, "PENDING") || "PENDING";
+  if (status === "SCHEDULED") return "PENDING";
+  return status;
 }
 
 export class MaintenanceService {
@@ -178,7 +188,7 @@ export class MaintenanceService {
           input.nextServiceMileage !== undefined && input.nextServiceMileage !== null
             ? Number(input.nextServiceMileage)
             : null,
-        status: safeUpper(input.status, "PENDING") || "PENDING",
+        status: normalizeMaintenanceDbStatus(input.status),
         parts: { create: parts },
         attachments: { create: attachments },
       },
@@ -247,7 +257,7 @@ export class MaintenanceService {
         await tx.maintenanceAttachment.deleteMany({ where: { maintenanceId: id } });
       }
 
-      return tx.maintenanceRecord.update({
+      const updated = await tx.maintenanceRecord.update({
         where: { id },
         data: {
           ...(input.vehicleId !== undefined ? { vehicleId: input.vehicleId } : {}),
@@ -281,11 +291,24 @@ export class MaintenanceService {
               }
             : {}),
           ...(input.status !== undefined
-            ? { status: safeUpper(input.status, "PENDING") || "PENDING" }
+            ? { status: normalizeMaintenanceDbStatus(input.status) }
             : {}),
-          ...(parts ? { parts: { create: parts } } : {}),
-          ...(attachments ? { attachments: { create: attachments } } : {}),
         },
+      });
+
+      if (parts?.length) {
+        await tx.maintenancePart.createMany({
+          data: parts.map((part) => ({ ...part, maintenanceId: id })),
+        });
+      }
+      if (attachments?.length) {
+        await tx.maintenanceAttachment.createMany({
+          data: attachments.map((item) => ({ ...item, maintenanceId: id })),
+        });
+      }
+
+      return tx.maintenanceRecord.findFirst({
+        where: { id: updated.id },
         include: maintenanceInclude,
       });
     });

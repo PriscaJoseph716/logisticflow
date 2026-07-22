@@ -1891,7 +1891,17 @@ function App() {
     window.localStorage.setItem("logisticsflow-language", language);
   }, [language]);
 
-  const hasMaintenancePermission = (permission) => maintenancePermissions.has(`maintenance:${permission}`);
+  const isOwner = (authSession?.user?.role ?? "").toUpperCase() === "OWNER";
+  const userPermissions = useMemo(
+    () => new Set(authSession?.user?.permissions ?? []),
+    [authSession?.user?.permissions],
+  );
+  const canViewAssignments =
+    isOwner || userPermissions.has("assignments:view") || userPermissions.has("assignments:manage");
+  const canManageAssignments = isOwner || userPermissions.has("assignments:manage");
+
+  const hasMaintenancePermission = (permission) =>
+    isOwner || maintenancePermissions.has(`maintenance:${permission}`);
   const canViewMaintenance = hasMaintenancePermission("view");
   const canCreateMaintenance = hasMaintenancePermission("create");
   const canEditMaintenance = hasMaintenancePermission("edit");
@@ -2000,15 +2010,6 @@ function App() {
     () => appData.fleet.find((item) => item.id === modal.vehicleId) ?? null,
     [appData.fleet, modal.vehicleId],
   );
-
-  const isOwner = (authSession?.user?.role ?? "").toUpperCase() === "OWNER";
-  const userPermissions = useMemo(
-    () => new Set(authSession?.user?.permissions ?? []),
-    [authSession?.user?.permissions],
-  );
-  const canViewAssignments =
-    isOwner || userPermissions.has("assignments:view") || userPermissions.has("assignments:manage");
-  const canManageAssignments = isOwner || userPermissions.has("assignments:manage");
 
   const roleKey = useMemo(() => {
     const role = String(authSession?.user?.role ?? "").toUpperCase();
@@ -3284,54 +3285,146 @@ function App() {
     }
 
     if (modal.type === "maintenance") {
-      if (!modalForm.vehicleId || !modalForm.serviceDate || !modalForm.workshop || !modalForm.mechanic || !modalForm.maintenanceType || !modalForm.currentMileage) {
+      if (
+        !modalForm.vehicleId ||
+        !modalForm.serviceDate ||
+        !modalForm.workshop ||
+        !modalForm.mechanic ||
+        !modalForm.maintenanceType ||
+        modalForm.currentMileage === "" ||
+        modalForm.currentMileage == null
+      ) {
         showToast(t.toast.fillMaintenance, "error");
         return;
       }
+
+      const isEdit = modal.mode === "edit";
+      const recordId = modal.recordId;
+      const selectedVehicle = appData.fleet.find((item) => item.id === modalForm.vehicleId);
+      const normalizedStatus =
+        modalForm.status === "inProgress"
+          ? "IN_PROGRESS"
+          : modalForm.status === "completed"
+            ? "COMPLETED"
+            : modalForm.status === "cancelled"
+              ? "CANCELLED"
+              : modalForm.status === "overdue"
+                ? "OVERDUE"
+                : "PENDING";
+
+      const cleanedParts = (modalForm.parts ?? [])
+        .filter((part) => String(part.partName || "").trim())
+        .map((part) => ({
+          partName: String(part.partName).trim(),
+          brand: part.brand || undefined,
+          quantity: Number(part.quantity) || 1,
+          unitPrice: Number(part.unitPrice) || 0,
+          totalPrice:
+            Number(part.totalPrice) ||
+            (Number(part.quantity) || 1) * (Number(part.unitPrice) || 0),
+          supplier: part.supplier || undefined,
+        }));
+
+      const cleanedAttachments = (modalForm.files ?? [])
+        .map((file) => ({
+          category: file.category || "document",
+          fileName: file.fileName ?? file.name,
+          fileUrl: file.fileUrl ?? file.url,
+          mimeType: file.mimeType || undefined,
+        }))
+        .filter((file) => file.fileName && file.fileUrl);
+
+      const descriptionText = [modalForm.description, modalForm.notes]
+        .map((value) => String(value || "").trim())
+        .filter(Boolean)
+        .filter((value, index, list) => list.indexOf(value) === index)
+        .join("\n\n");
 
       const payload = {
         vehicleId: modalForm.vehicleId,
         maintenanceDate: modalForm.serviceDate,
         maintenanceType: modalForm.maintenanceType,
-        description: modalForm.description || undefined,
+        description: descriptionText || "",
         workshop: modalForm.workshop,
         mechanic: modalForm.mechanic,
-        currentMileage: Number(modalForm.currentMileage),
+        currentMileage: Number(modalForm.currentMileage) || 0,
         laborCost: Number(modalForm.laborCost) || 0,
         otherCost: Number(modalForm.otherExpenses) || 0,
-        nextServiceDate: modalForm.nextServiceDate || undefined,
-        nextServiceMileage: modalForm.nextServiceMileage ? Number(modalForm.nextServiceMileage) : undefined,
+        nextServiceDate: modalForm.nextServiceDate || null,
+        nextServiceMileage: modalForm.nextServiceMileage
+          ? Number(modalForm.nextServiceMileage)
+          : null,
+        status: normalizedStatus,
+        parts: cleanedParts,
+        attachments: cleanedAttachments,
+      };
+
+      const optimisticRecord = {
+        id: recordId || `tmp-maint-${Date.now()}`,
+        vehicleId: modalForm.vehicleId,
+        vehicleLabel: selectedVehicle
+          ? `${getVehiclePlateLabel(selectedVehicle)} - ${selectedVehicle.driver}`
+          : modalForm.vehicleLabel || "",
+        plateNumber: selectedVehicle
+          ? getVehiclePlateLabel(selectedVehicle)
+          : modalForm.plateNumber || "",
+        serviceDate: modalForm.serviceDate,
+        maintenanceType: modalForm.maintenanceType,
+        description: descriptionText || "",
+        workshop: modalForm.workshop,
+        mechanic: modalForm.mechanic,
+        currentMileage: Number(modalForm.currentMileage) || 0,
+        laborCost: Number(modalForm.laborCost) || 0,
+        partsCost: calculatePartsTotal(cleanedParts),
+        otherExpenses: Number(modalForm.otherExpenses) || 0,
+        totalCost: calculateMaintenanceTotal({
+          laborCost: modalForm.laborCost,
+          parts: cleanedParts,
+          otherExpenses: modalForm.otherExpenses,
+        }),
+        nextServiceDate: modalForm.nextServiceDate || "",
+        nextServiceMileage: modalForm.nextServiceMileage || "",
         status:
           modalForm.status === "inProgress"
-            ? "IN_PROGRESS"
+            ? "inProgress"
             : modalForm.status === "completed"
-              ? "COMPLETED"
+              ? "completed"
               : modalForm.status === "cancelled"
-                ? "CANCELLED"
+                ? "cancelled"
                 : modalForm.status === "overdue"
-                  ? "OVERDUE"
-                  : "SCHEDULED",
-        parts: (modalForm.parts ?? []).map((part) => ({
-          partName: part.partName,
-          brand: part.brand || undefined,
-          quantity: Number(part.quantity) || 1,
-          unitPrice: Number(part.unitPrice) || 0,
-          supplier: part.supplier || undefined,
+                  ? "overdue"
+                  : "pending",
+        notes: "",
+        parts: cleanedParts.map((part, index) => ({
+          id: `local-part-${index}`,
+          ...part,
+          brand: part.brand || "",
+          supplier: part.supplier || "",
         })),
-        attachments: (modalForm.files ?? []).map((file) => ({
+        files: cleanedAttachments.map((file, index) => ({
+          id: `local-file-${index}`,
+          name: file.fileName,
+          url: file.fileUrl,
+          mimeType: file.mimeType || "",
           category: file.category || "document",
-          fileName: file.fileName ?? file.name,
-          fileUrl: file.fileUrl ?? file.url,
-          mimeType: file.mimeType || undefined,
         })),
       };
 
+      setAppData((current) => ({
+        ...current,
+        maintenanceRecords: isEdit
+          ? (current.maintenanceRecords ?? []).map((record) =>
+              record.id === recordId ? { ...record, ...optimisticRecord, id: recordId } : record,
+            )
+          : [optimisticRecord, ...(current.maintenanceRecords ?? [])],
+      }));
+
       softPersist(
         () =>
-          modal.mode === "edit" && modal.recordId
-            ? maintenanceApi.update(modal.recordId, payload)
+          isEdit && recordId
+            ? maintenanceApi.update(recordId, payload)
             : maintenanceApi.create(payload),
-        modal.mode === "edit" ? t.toast.maintenanceUpdated : t.toast.maintenanceSaved,
+        isEdit ? t.toast.maintenanceUpdated : t.toast.maintenanceSaved,
         language === "sw"
           ? "Imeshindikana kuhifadhi rekodi ya matengenezo."
           : "Unable to save maintenance record. Please try again.",

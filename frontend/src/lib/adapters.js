@@ -10,7 +10,8 @@ function fromEnum(value, fallback = "") {
 function normalizeMaintenanceStatus(value) {
   const normalized = fromEnum(value);
   if (normalized === "in_progress") return "inProgress";
-  return normalized;
+  if (normalized === "scheduled") return "pending";
+  return normalized || "pending";
 }
 
 function asObject(value) {

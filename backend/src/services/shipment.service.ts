@@ -1,9 +1,9 @@
 import { prisma } from "../config/database.js";
 import { AppError } from "../utils/app-error.js";
 import { safeTrim, safeUpper } from "../utils/json.js";
+import { calculateTruckLoadInvoiceAmount } from "../utils/truck-pricing.js";
 
-/** One full truck/car load of cement bags. Supplier prices are for this whole load. */
-export const BAGS_PER_TRUCK_LOAD = 600;
+export { BAGS_PER_TRUCK_LOAD, calculateTruckLoadInvoiceAmount } from "../utils/truck-pricing.js";
 
 const shipmentInclude = {
   customer: true,
@@ -14,22 +14,6 @@ const shipmentInclude = {
 
 function codeSuffix(id: string) {
   return id.replace(/-/g, "").slice(-6).toUpperCase();
-}
-
-/**
- * Supplier buying/selling price is for one full truck (600 bags).
- * Invoice amount = (bags / 600) × truck selling price.
- */
-export function calculateTruckLoadInvoiceAmount(
-  quantityBags: number,
-  truckSellingPrice: number,
-  bagsPerTruck = BAGS_PER_TRUCK_LOAD,
-) {
-  const bags = Number(quantityBags);
-  const price = Number(truckSellingPrice);
-  if (!Number.isFinite(bags) || bags <= 0) return 0;
-  if (!Number.isFinite(price) || price <= 0) return 0;
-  return (bags / bagsPerTruck) * price;
 }
 
 export class ShipmentService {
@@ -160,9 +144,10 @@ export class ShipmentService {
           });
         }
 
+        const truckPrice = supplier?.sellingPrice || 0;
+        const totalAmount = calculateTruckLoadInvoiceAmount(quantityTons, truckPrice);
+
         if (existing.invoices.length === 0) {
-          const truckPrice = supplier?.sellingPrice || 0;
-          const totalAmount = calculateTruckLoadInvoiceAmount(quantityTons, truckPrice);
           const dueDate = new Date();
           dueDate.setDate(dueDate.getDate() + 14);
 
@@ -178,6 +163,19 @@ export class ShipmentService {
               dueDate,
             },
           });
+        } else {
+          // Fix older invoices that were wrongly billed as bags × price.
+          for (const invoice of existing.invoices) {
+            if (invoice.paidAmount > 0) continue;
+            if (Math.abs(invoice.totalAmount - totalAmount) < 0.01) continue;
+            await tx.invoice.update({
+              where: { id: invoice.id },
+              data: {
+                totalAmount,
+                status: totalAmount <= 0 ? invoice.status : "OPEN",
+              },
+            });
+          }
         }
       }
 

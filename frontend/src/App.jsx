@@ -314,7 +314,7 @@ const translations = {
       supplierId: "ID",
       buyingPrice: "Buying Price (per truck)",
       sellingPrice: "Selling Price (per truck)",
-      priceHint: "Price is for one full truck load of 600 bags, not per bag.",
+      priceHint: "This is the price of the whole truck (600 bags). Billing uses this amount — it is not multiplied by bag count.",
     },
     maintenance: {
       intro: "Track servicing, repairs, parts, workshops, and vehicle health in one place.",
@@ -917,7 +917,7 @@ const translations = {
       supplierId: "ID",
       buyingPrice: "Bei ya kununua (kwa lori)",
       sellingPrice: "Bei ya kuuza (kwa lori)",
-      priceHint: "Bei ni kwa lori moja kamili ya mifuko 600, si kwa mfuko mmoja.",
+      priceHint: "Hii ni bei ya lori kamili (mifuko 600). Ankara hutumia kiasi hichi — hakiongezwi kwa idadi ya mifuko.",
     },
     maintenance: {
       intro: "Fuatilia service, marekebisho, vipuri, karakana, na afya ya gari sehemu moja.",

@@ -703,3 +703,341 @@ export function buildReportPdf({
 export function downloadReportFile(file) {
   downloadFileBlob(file.fileName, file.blob);
 }
+
+function matchesCustomer(recordCustomerId, recordCustomerName, customer) {
+  const entityId = customer?.entityId || customer?.raw?.id || "";
+  const code = String(customer?.id || customer?.code || "").trim().toLowerCase();
+  const name = String(customer?.name || "").trim().toLowerCase();
+  const recordId = String(recordCustomerId || "").trim();
+  const recordName = String(recordCustomerName || "").trim().toLowerCase();
+
+  if (entityId && recordId && recordId === entityId) return true;
+  if (code && recordId && recordId.toLowerCase() === code) return true;
+  if (name && recordName && recordName === name) return true;
+  return false;
+}
+
+/** Gather shipments, deliveries, and invoices for one customer (no UUIDs exposed). */
+export function collectCustomerReportData(customer, appData = {}, inRange) {
+  const applyRange = typeof inRange === "function" ? inRange : () => true;
+
+  const shipments = (appData.shipments ?? []).filter(
+    (item) =>
+      matchesCustomer(item.customerId || item.raw?.customerId, item.customer, customer) &&
+      applyRange(item.date),
+  );
+
+  const shipmentIds = new Set(shipments.map((item) => item.id).filter(Boolean));
+
+  const deliveries = (appData.deliveries ?? []).filter((item) => {
+    const linkedShipmentId = item.raw?.shipmentId || item.raw?.shipment?.id;
+    const byCustomer = matchesCustomer(
+      item.raw?.customerId || item.raw?.shipment?.customerId,
+      item.customer,
+      customer,
+    );
+    const byShipment = linkedShipmentId && shipmentIds.has(linkedShipmentId);
+    return (byCustomer || byShipment) && applyRange(item.date);
+  });
+
+  const invoices = (appData.payments ?? []).filter(
+    (item) =>
+      matchesCustomer(item.customerId || item.raw?.customerId, item.customer, customer) &&
+      applyRange(item.date || item.dueDate),
+  );
+
+  const billed = invoices.reduce((sum, item) => sum + moneyValue(item.total), 0);
+  const collected = invoices.reduce((sum, item) => sum + moneyValue(item.paid), 0);
+  const outstanding = invoices.reduce(
+    (sum, item) => sum + Math.max(0, moneyValue(item.total) - moneyValue(item.paid)),
+    0,
+  );
+  const quantity = shipments.reduce((sum, item) => sum + moneyValue(item.quantity), 0);
+
+  return {
+    shipments,
+    deliveries,
+    invoices,
+    summary: {
+      shipments: shipments.length,
+      deliveries: deliveries.length,
+      invoices: invoices.length,
+      quantity,
+      billed,
+      collected,
+      outstanding,
+    },
+  };
+}
+
+/**
+ * Enterprise PDF for one customer: profile + shipments + deliveries + billing.
+ */
+export function buildCustomerReportPdf({
+  customer,
+  appData,
+  labels,
+  business,
+  filter,
+  customRange,
+  inRange,
+}) {
+  const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const margin = 36;
+  const contentWidth = pageWidth - margin * 2;
+  const rowHeight = 22;
+  const headerHeight = 26;
+  const tableBottom = pageHeight - 52;
+
+  const company = business?.companyName || business?.name || "LogisticsFlow";
+  const businessId = business?.businessId || "";
+  const period = periodLabel(filter, labels, customRange);
+  const generatedAt = new Date().toLocaleString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  const columnLabels = { ...(labels.column || {}), ...labels };
+  const data = collectCustomerReportData(customer, appData, inRange);
+  const customerName = sanitizeDisplayValue(customer?.name, "Customer");
+  const title = labels.customerReportTitle || "Customer Report";
+
+  const summaryCards = [
+    { label: labels.totalShipments || "Shipments", value: String(data.summary.shipments) },
+    { label: labels.deliveries || "Deliveries", value: String(data.summary.deliveries) },
+    {
+      label: labels.totalQuantity || "Quantity",
+      value: `${data.summary.quantity.toLocaleString()} bags`,
+    },
+    { label: labels.invoiced || "Billed", value: formatReceiptMoney(data.summary.billed) },
+    { label: labels.outstanding || "Outstanding", value: formatReceiptMoney(data.summary.outstanding) },
+  ];
+
+  const sections = [
+    {
+      key: "shipments",
+      title: labels.shipmentsSection || labels.pages?.shipments || "Shipments",
+      table: buildSectorTable("shipments", data.shipments, columnLabels),
+    },
+    {
+      key: "deliveries",
+      title: labels.deliveriesSection || labels.pages?.deliveries || "Deliveries",
+      table: buildSectorTable("deliveries", data.deliveries, columnLabels),
+    },
+    {
+      key: "billing",
+      title: labels.billingSection || labels.pages?.billing || "Billing",
+      table: buildSectorTable("billing", data.invoices, columnLabels),
+    },
+  ];
+
+  const summaryLine = [
+    `${labels.totalShipments || "Shipments"}: ${data.summary.shipments}`,
+    `${labels.outstanding || "Outstanding"}: ${formatReceiptMoney(data.summary.outstanding)}`,
+  ].join("   ·   ");
+
+  let y = 28;
+
+  const drawAccentBar = () => {
+    doc.setFillColor(...ACCENT);
+    doc.rect(0, 0, pageWidth, 6, "F");
+  };
+
+  const ensureSpace = (needed) => {
+    if (y + needed <= tableBottom) return false;
+    doc.addPage();
+    y = 40;
+    drawAccentBar();
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.setTextColor(...SLATE);
+    doc.text(company, margin, y);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(...MUTED);
+    doc.text(`${title} · ${customerName}`, pageWidth - margin, y, { align: "right" });
+    y += 16;
+    doc.setDrawColor(...BORDER);
+    doc.line(margin, y, pageWidth - margin, y);
+    y += 16;
+    return true;
+  };
+
+  // Header
+  drawAccentBar();
+  doc.setFillColor(...ACCENT_SOFT);
+  doc.roundedRect(margin, y, 34, 34, 8, 8, "F");
+  doc.setTextColor(...WHITE);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(12);
+  doc.text("LF", margin + 17, y + 21, { align: "center" });
+
+  doc.setTextColor(...SLATE);
+  doc.setFontSize(15);
+  doc.text(company, margin + 46, y + 14);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.setTextColor(...MUTED);
+  doc.text(businessId ? `Business ID ${businessId}` : "LogisticsFlow", margin + 46, y + 28);
+
+  doc.setFillColor(239, 246, 255);
+  doc.roundedRect(pageWidth - margin - 118, y + 5, 118, 22, 11, 11, "F");
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8);
+  doc.setTextColor(...ACCENT);
+  doc.text(String(labels.reportBadge || "REPORT").toUpperCase(), pageWidth - margin - 59, y + 19, {
+    align: "center",
+  });
+
+  y += 52;
+  doc.setDrawColor(...BORDER);
+  doc.line(margin, y, pageWidth - margin, y);
+  y += 22;
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(20);
+  doc.setTextColor(...SLATE);
+  doc.text(title, margin, y);
+  y += 18;
+  doc.setFontSize(13);
+  doc.text(customerName, margin, y);
+  y += 16;
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  doc.setTextColor(...MUTED);
+  const phone = sanitizeDisplayValue(customer?.phone);
+  const location = sanitizeDisplayValue(customer?.location);
+  doc.text(`${labels.phone || "Phone"}: ${phone}   ·   ${labels.location || "Location"}: ${location}`, margin, y);
+  y += 14;
+  doc.text(`${labels.period || "Period"}: ${period}`, margin, y);
+  y += 14;
+  doc.text(`${labels.generated || "Generated"}: ${generatedAt}`, margin, y);
+  y += 22;
+
+  // Summary cards
+  const cardCount = summaryCards.length;
+  const gap = 10;
+  const cardW = (contentWidth - gap * (cardCount - 1)) / cardCount;
+  const cardH = 52;
+  summaryCards.forEach((card, index) => {
+    const x = margin + index * (cardW + gap);
+    doc.setFillColor(...ROW_ALT);
+    doc.setDrawColor(...BORDER);
+    doc.roundedRect(x, y, cardW, cardH, 8, 8, "FD");
+    doc.setFillColor(...ACCENT);
+    doc.rect(x, y + 6, 3, cardH - 12, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(7.5);
+    doc.setTextColor(...MUTED);
+    doc.text(fitText(doc, String(card.label).toUpperCase(), cardW - 20), x + 12, y + 18);
+    doc.setFontSize(12);
+    doc.setTextColor(...SLATE);
+    doc.text(fitText(doc, String(card.value), cardW - 20), x + 12, y + 38);
+  });
+  y += cardH + 24;
+
+  const drawSectionTable = (sectionTitle, table) => {
+    ensureSpace(56);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(12);
+    doc.setTextColor(...SLATE);
+    doc.text(sectionTitle, margin, y);
+    y += 14;
+
+    if (!table.columns.length || !table.rows.length) {
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.setTextColor(...MUTED);
+      doc.text(labels.noRecords || "No records for this period.", margin, y);
+      y += 20;
+      return;
+    }
+
+    const colWidths = computeColumnWidths(table.columns, contentWidth);
+
+    const drawHeader = () => {
+      doc.setFillColor(...ACCENT);
+      doc.roundedRect(margin, y, contentWidth, headerHeight, 5, 5, "F");
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(7.5);
+      doc.setTextColor(...WHITE);
+      let x = margin;
+      table.columns.forEach((column, index) => {
+        const width = colWidths[index];
+        doc.text(fitText(doc, String(column.label).toUpperCase(), width - 10), x + width / 2, y + 16, {
+          align: "center",
+        });
+        x += width;
+      });
+      y += headerHeight + 2;
+    };
+
+    drawHeader();
+    table.rows.forEach((cells, rowIndex) => {
+      if (ensureSpace(rowHeight + 4)) {
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(11);
+        doc.setTextColor(...SLATE);
+        doc.text(`${sectionTitle} (${labels.continued || "continued"})`, margin, y);
+        y += 12;
+        drawHeader();
+      }
+
+      if (rowIndex % 2 === 1) {
+        doc.setFillColor(...ROW_ALT);
+        doc.rect(margin, y, contentWidth, rowHeight, "F");
+      }
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      doc.setTextColor(...SLATE);
+      let x = margin;
+      table.columns.forEach((column, index) => {
+        const width = colWidths[index];
+        const text = fitText(doc, sanitizeDisplayValue(cells[index], "—"), width - 10);
+        const textX =
+          column.align === "right" ? x + width - 6 : column.align === "center" ? x + width / 2 : x + 6;
+        doc.text(text, textX, y + 14, {
+          align: column.align === "left" ? "left" : column.align,
+        });
+        x += width;
+      });
+      y += rowHeight;
+    });
+    y += 18;
+  };
+
+  sections.forEach((section) => {
+    drawSectionTable(section.title, section.table);
+  });
+
+  const pageCount = doc.getNumberOfPages();
+  for (let pageIndex = 1; pageIndex <= pageCount; pageIndex += 1) {
+    doc.setPage(pageIndex);
+    drawFooter(doc, {
+      pageWidth,
+      pageHeight,
+      margin,
+      labels,
+      summaryLine: `${customerName}   ·   ${summaryLine}`,
+      pageIndex,
+      pageCount,
+    });
+  }
+
+  doc.setProperties({ title: `${title} — ${customerName}` });
+  const stamp = new Date().toISOString().slice(0, 10);
+  const safeName = String(customerName)
+    .replace(/[^a-z0-9]+/gi, "-")
+    .replace(/^-|-$/g, "")
+    .toLowerCase() || "customer";
+  return {
+    blob: doc.output("blob"),
+    fileName: `customer-${safeName}-report-${stamp}.pdf`,
+  };
+}

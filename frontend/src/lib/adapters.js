@@ -101,6 +101,7 @@ export function mapShipmentRecord(record) {
     unit: "bags",
     vehicle: record.vehicle?.headPlateNumber ?? "Unassigned vehicle",
     vehicleId: record.vehicleId ?? "",
+    driver: record.driver?.fullName ?? "Unassigned",
     driverId: record.driverId ?? "",
     date: toDateInput(record.scheduledDate ?? record.createdAt),
     status: normalizeShipmentStatus(record.status),

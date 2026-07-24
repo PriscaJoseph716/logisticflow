@@ -70,7 +70,9 @@ export class CustomerService {
     });
 
     const business = await prisma.business.findUnique({ where: { id: businessId } });
-    const loginUrl = business ? buildPortalLoginUrl(business.businessId) : env.PORTAL_URL;
+    const loginUrl = business
+      ? buildPortalLoginUrl(business.businessId)
+      : `${String(env.CUSTOMER_PORTAL_URL).replace(/\/+$/, "")}/login`;
 
     const { passwordHash: _omit, ...safeCustomer } = customer;
     return {
@@ -78,10 +80,12 @@ export class CustomerService {
       hasPortalLogin: enableLogin,
       portalCredentials: enableLogin
         ? {
+            customerName: customer.name,
             customerId: customer.customerCode,
             temporaryPassword,
             loginUrl,
             businessId: business?.businessId ?? "",
+            companyName: business?.companyName ?? "",
           }
         : null,
     };
@@ -160,10 +164,12 @@ export class CustomerService {
       ...safe,
       hasPortalLogin: true,
       portalCredentials: {
+        customerName: updated.name,
         customerId: updated.customerCode,
         temporaryPassword,
         loginUrl: buildPortalLoginUrl(business.businessId),
         businessId: business.businessId,
+        companyName: business.companyName,
       },
     };
   }

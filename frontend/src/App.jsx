@@ -77,6 +77,12 @@ import {
   REPORT_SECTOR_IDS,
 } from "./lib/reportDocuments";
 import { calculateShipmentProfit } from "./lib/truckPricing";
+import {
+  buildPortalEmailMailto,
+  buildPortalLoginDetailsText,
+  buildPortalWhatsAppMessage,
+  normalizePortalCredentials,
+} from "./lib/portalCredentials";
 import { configureApiClient, getApiErrorMessage, getSession, setSession as persistSession, clearSession as clearPersistedSession } from "./lib/apiClient";
 import {
   assignmentsApi,
@@ -1448,16 +1454,6 @@ function generateNextCustomerId(customers) {
   }, 0);
 
   return `CUST-${String(maxNumber + 1).padStart(4, "0")}`;
-}
-
-function buildPortalCredentialsShareText(credentials) {
-  if (!credentials) return "";
-  return [
-    "LogisticsFlow Customer Portal access",
-    `Customer ID: ${credentials.customerId}`,
-    `Temporary Password: ${credentials.temporaryPassword}`,
-    `Login URL: ${credentials.loginUrl}`,
-  ].join("\n");
 }
 
 function generateNextSupplierId(suppliers) {
@@ -2903,9 +2899,16 @@ function App() {
     setModal({ type: "customer", mode: "edit", customerId: customer.entityId });
   };
 
-  const openPortalCredentialsModal = (credentials) => {
+  const openPortalCredentialsModal = (credentials, customer = null) => {
     if (!credentials) return;
-    setModalForm({ portalCredentials: credentials });
+    setModalForm({
+      portalCredentials: normalizePortalCredentials(credentials, {
+        customerName: credentials.customerName || customer?.name || "",
+        companyName: credentials.companyName || authSession?.business?.companyName || authSession?.business?.name || "",
+        businessId: credentials.businessId || authSession?.business?.businessId || "",
+        customerId: credentials.customerId || customer?.id || "",
+      }),
+    });
     setModal({ type: "portalCredentials" });
   };
 
@@ -2920,7 +2923,7 @@ function App() {
         const item = payload?.item ?? payload;
         refreshAfterSave();
         if (item?.portalCredentials) {
-          openPortalCredentialsModal(item.portalCredentials);
+          openPortalCredentialsModal(item.portalCredentials, customer);
           showToast(language === "sw" ? "Taarifa za portal zimetengenezwa." : "Portal credentials generated.");
         } else {
           showToast(language === "sw" ? "Portal imewezeshwa." : "Portal access enabled.");
@@ -3599,7 +3602,10 @@ function App() {
           const item = result?.item ?? result;
           refreshAfterSave();
           if (item?.portalCredentials) {
-            openPortalCredentialsModal(item.portalCredentials);
+            openPortalCredentialsModal(item.portalCredentials, {
+              name: item.name || modalForm.name,
+              id: item.customerCode || modalForm.id,
+            });
           }
         } catch (error) {
           showToast(
@@ -6476,25 +6482,37 @@ function App() {
           cancelLabel={t.common.cancel}
           hideSave={false}
         >
-          <div className="form-grid single">
-            <label>
-              Customer ID
-              <input value={modalForm.portalCredentials.customerId ?? ""} readOnly />
-            </label>
-            <label>
-              Temporary Password
-              <input value={modalForm.portalCredentials.temporaryPassword ?? ""} readOnly />
-            </label>
-            <label>
-              Login URL
-              <input value={modalForm.portalCredentials.loginUrl ?? ""} readOnly />
-            </label>
+          <div className="form-grid single portal-credentials-panel">
+            <div className="fleet-modal-details billing-pay-summary">
+              <div className="summary-row">
+                <span>Customer</span>
+                <strong>{modalForm.portalCredentials.customerName || "—"}</strong>
+              </div>
+              <div className="summary-row">
+                <span>Business ID</span>
+                <strong>{modalForm.portalCredentials.businessId || "—"}</strong>
+              </div>
+              <div className="summary-row">
+                <span>Customer ID</span>
+                <strong>{modalForm.portalCredentials.customerId || "—"}</strong>
+              </div>
+              <div className="summary-row">
+                <span>Temporary Password</span>
+                <strong>{modalForm.portalCredentials.temporaryPassword || "—"}</strong>
+              </div>
+              <div className="summary-row">
+                <span>Portal</span>
+                <strong style={{ wordBreak: "break-all", textAlign: "right" }}>
+                  {modalForm.portalCredentials.loginUrl || "—"}
+                </strong>
+              </div>
+            </div>
             <div className="fleet-card-actions" style={{ flexWrap: "wrap", gap: 8 }}>
               <button
                 type="button"
                 className="button secondary"
                 onClick={async () => {
-                  const text = buildPortalCredentialsShareText(modalForm.portalCredentials);
+                  const text = buildPortalLoginDetailsText(modalForm.portalCredentials);
                   try {
                     await navigator.clipboard.writeText(text);
                     showToast(language === "sw" ? "Imenakiliwa." : "Login details copied.");
@@ -6506,9 +6524,25 @@ function App() {
                 <Copy size={14} />
                 Copy Login Details
               </button>
+              <button
+                type="button"
+                className="button secondary"
+                onClick={async () => {
+                  const link = modalForm.portalCredentials.loginUrl || "";
+                  try {
+                    await navigator.clipboard.writeText(link);
+                    showToast(language === "sw" ? "Kiungo kimenakiliwa." : "Portal link copied.");
+                  } catch (_error) {
+                    showToast(language === "sw" ? "Imeshindikana kunakili." : "Unable to copy link.", "error");
+                  }
+                }}
+              >
+                <Copy size={14} />
+                Copy Portal Link
+              </button>
               <a
                 className="button secondary"
-                href={`https://wa.me/?text=${encodeURIComponent(buildPortalCredentialsShareText(modalForm.portalCredentials))}`}
+                href={`https://wa.me/?text=${encodeURIComponent(buildPortalWhatsAppMessage(modalForm.portalCredentials))}`}
                 target="_blank"
                 rel="noreferrer"
               >
@@ -6517,7 +6551,16 @@ function App() {
               </a>
               <a
                 className="button secondary"
-                href={`mailto:?subject=${encodeURIComponent("Customer Portal Login")}&body=${encodeURIComponent(buildPortalCredentialsShareText(modalForm.portalCredentials))}`}
+                href={buildPortalEmailMailto(modalForm.portalCredentials).href}
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(
+                      buildPortalEmailMailto(modalForm.portalCredentials).html,
+                    );
+                  } catch (_error) {
+                    // Mailto still opens even if HTML clipboard copy fails.
+                  }
+                }}
               >
                 <Mail size={14} />
                 Share via Email

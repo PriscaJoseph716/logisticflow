@@ -19,6 +19,14 @@ function optional(name: string, fallback: string): string {
 
 const NODE_ENV = optional("NODE_ENV", "development");
 
+const customerPortalDefault =
+  NODE_ENV === "production" ? "https://portal.logisticflow.app" : "http://localhost:5173";
+
+const customerPortalUrl = optional(
+  "CUSTOMER_PORTAL_URL",
+  optional("PORTAL_URL", customerPortalDefault),
+).replace(/\/+$/, "");
+
 export const env = {
   NODE_ENV,
   PORT: Number(optional("PORT", "5000")),
@@ -35,7 +43,10 @@ export const env = {
       ? true
       : optional("COOKIE_SECURE", "false") === "true",
   FRONTEND_URL: optional("FRONTEND_URL", "http://localhost:5173"),
-  PORTAL_URL: optional("PORTAL_URL", "http://localhost:5173/portal"),
+  /** Customer portal origin. Login links: `{CUSTOMER_PORTAL_URL}/login/LOG-0001` */
+  CUSTOMER_PORTAL_URL: customerPortalUrl,
+  /** @deprecated Use CUSTOMER_PORTAL_URL */
+  PORTAL_URL: customerPortalUrl,
 };
 
 const DEFAULT_ORIGINS = [
@@ -44,19 +55,19 @@ const DEFAULT_ORIGINS = [
   "https://logisticflow.vercel.app",
   "https://www.logisticflow.vercel.app",
   "https://portal.logisticflow.vercel.app",
+  "https://portal.logisticflow.app",
   "https://app.logisticflow.com",
   "https://portal.logisticflow.com",
 ];
 
 export const allowedOrigins = Array.from(
   new Set(
-    [env.FRONTEND_URL, env.PORTAL_URL]
+    [env.FRONTEND_URL, env.CUSTOMER_PORTAL_URL]
       .join(",")
       .split(",")
       .map((origin) => origin.trim().replace(/\/+$/, ""))
       .filter(Boolean)
       .concat(DEFAULT_ORIGINS)
-      // Allow portal path origins without trailing path for CORS host matching
       .flatMap((origin) => {
         try {
           const url = new URL(origin.includes("://") ? origin : `https://${origin}`);

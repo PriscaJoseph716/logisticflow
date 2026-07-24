@@ -74,11 +74,9 @@ function generateTemporaryPassword(length = 10) {
 }
 
 export function buildPortalLoginUrl(publicBusinessId: string) {
-  const base = env.PORTAL_URL.replace(/\/+$/, "");
-  if (base.includes("/portal")) {
-    return `${base}/login/${publicBusinessId}`;
-  }
-  return `${base}/login/${publicBusinessId}`;
+  const base = String(env.CUSTOMER_PORTAL_URL || "").replace(/\/+$/, "");
+  const code = String(publicBusinessId || "").trim().toUpperCase();
+  return `${base}/login/${code}`;
 }
 
 export class PortalAuthService {

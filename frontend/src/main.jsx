@@ -7,7 +7,11 @@ import "./styles/app.css";
 function isPortalMode() {
   if (typeof window === "undefined") return false;
   const { hostname, pathname } = window.location;
-  return hostname.startsWith("portal.") || pathname.startsWith("/portal");
+  return (
+    hostname.startsWith("portal.") ||
+    pathname.startsWith("/portal") ||
+    /^\/login(\/|$)/i.test(pathname)
+  );
 }
 
 ReactDOM.createRoot(document.getElementById("root")).render(

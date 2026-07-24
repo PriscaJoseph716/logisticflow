@@ -249,7 +249,7 @@ function LoginPage({ businessCode, onLoginSuccess, showToast }) {
   useEffect(() => {
     if (!businessCode) {
       setLoadingBusiness(false);
-      setError("Missing business login link. Use /login/LOG-0001.");
+      setError("Missing business login link. Use /portal/login/LOG-0001.");
       return;
     }
 

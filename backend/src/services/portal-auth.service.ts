@@ -1,6 +1,5 @@
 import { randomBytes } from "node:crypto";
 import { prisma } from "../config/database.js";
-import { env } from "../config/env.js";
 import { AppError } from "../utils/app-error.js";
 import { normalizeBusinessId } from "../utils/business-id.js";
 import { hashPassword, verifyPassword } from "../utils/hash.js";
@@ -74,9 +73,9 @@ function generateTemporaryPassword(length = 10) {
 }
 
 export function buildPortalLoginUrl(publicBusinessId: string) {
-  const base = String(env.CUSTOMER_PORTAL_URL || "").replace(/\/+$/, "");
+  // Relative path only — the admin UI prefixes the current browser origin.
   const code = String(publicBusinessId || "").trim().toUpperCase();
-  return `${base}/login/${code}`;
+  return `/portal/login/${code}`;
 }
 
 export class PortalAuthService {

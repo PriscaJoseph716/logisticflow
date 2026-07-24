@@ -1,26 +1,28 @@
 /**
  * Customer portal URL helpers for admin credential sharing.
- * Uses VITE_CUSTOMER_PORTAL_URL only — never hardcode production hosts in callers.
+ * Always uses the current browser origin — never hardcodes a domain.
  */
 
-function trimSlash(url) {
-  return String(url || "").trim().replace(/\/+$/, "");
-}
-
 export function getCustomerPortalBaseUrl() {
-  const fromEnv = trimSlash(import.meta.env.VITE_CUSTOMER_PORTAL_URL);
-  if (fromEnv) return fromEnv;
-  // Safe defaults when env is missing (dev vs prod build).
-  return import.meta.env.PROD ? "https://portal.logisticflow.app" : "http://localhost:5173";
+  if (typeof window !== "undefined" && window.location?.origin) {
+    return window.location.origin;
+  }
+  try {
+    return new URL(typeof window !== "undefined" ? window.location.href : "").origin;
+  } catch {
+    return "";
+  }
 }
 
+/** `${origin}/portal/login/LOG-0001` */
 export function buildCustomerPortalLoginUrl(businessId) {
   const code = String(businessId || "").trim().toUpperCase();
-  if (!code) return getCustomerPortalBaseUrl();
-  return `${getCustomerPortalBaseUrl()}/login/${code}`;
+  const origin = getCustomerPortalBaseUrl().replace(/\/+$/, "");
+  if (!code) return origin ? `${origin}/portal` : "/portal";
+  return `${origin}/portal/login/${code}`;
 }
 
-/** Normalize API credentials so Portal URL always comes from frontend env. */
+/** Normalize API credentials so Portal URL always matches the current host. */
 export function normalizePortalCredentials(credentials = {}, extras = {}) {
   const businessId = credentials.businessId || extras.businessId || "";
   return {

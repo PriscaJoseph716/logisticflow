@@ -1,5 +1,4 @@
 import { prisma } from "../config/database.js";
-import { env } from "../config/env.js";
 import { AppError } from "../utils/app-error.js";
 import { hashPassword } from "../utils/hash.js";
 import { safeTrim } from "../utils/json.js";
@@ -70,9 +69,7 @@ export class CustomerService {
     });
 
     const business = await prisma.business.findUnique({ where: { id: businessId } });
-    const loginUrl = business
-      ? buildPortalLoginUrl(business.businessId)
-      : `${String(env.CUSTOMER_PORTAL_URL).replace(/\/+$/, "")}/login`;
+    const loginUrl = business ? buildPortalLoginUrl(business.businessId) : "/portal/login";
 
     const { passwordHash: _omit, ...safeCustomer } = customer;
     return {
